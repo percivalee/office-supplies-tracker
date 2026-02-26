@@ -162,9 +162,37 @@
             </div>
 
                 <!-- 批量操作栏 -->
-                <div v-if="selectedItems.length > 0" class="px-4 py-3 bg-blue-50/90 border-b border-blue-100 flex items-center justify-between">
-                    <span class="text-sm text-blue-700">已选择 <strong>{{ selectedItems.length }}</strong> 条记录</span>
-                    <button @click="batchDelete" class="btn-base btn-danger btn-compact">
+                <div v-if="selectedItems.length > 0" class="px-4 py-3 bg-blue-50/90 border-b border-blue-100 flex flex-wrap items-center gap-2">
+                    <span class="text-sm text-blue-700 mr-2">已选择 <strong>{{ selectedItems.length }}</strong> 条记录</span>
+                    <select v-model="batchEditField" @change="onBatchFieldChange" class="toolbar-control min-w-[9rem]">
+                        <option value="">批量修改字段</option>
+                        <option value="status">状态</option>
+                        <option value="department">申领部门</option>
+                        <option value="handler">经办人</option>
+                        <option value="payment_status">付款状态</option>
+                        <option value="invoice_issued">发票状态</option>
+                    </select>
+                    <select v-if="batchEditField === 'status'" v-model="batchEditValue" class="toolbar-control min-w-[8rem]">
+                        <option value="">请选择状态</option>
+                        <option v-for="s in statuses" :key="`batch-status-${s}`" :value="s">{{ s }}</option>
+                    </select>
+                    <select v-else-if="batchEditField === 'payment_status'" v-model="batchEditValue" class="toolbar-control min-w-[8rem]">
+                        <option value="">请选择付款状态</option>
+                        <option v-for="p in paymentStatuses" :key="`batch-pay-${p}`" :value="p">{{ p }}</option>
+                    </select>
+                    <select v-else-if="batchEditField === 'invoice_issued'" v-model="batchEditValue" class="toolbar-control min-w-[8rem]">
+                        <option value="">请选择发票状态</option>
+                        <option value="1">已开票</option>
+                        <option value="0">未开票</option>
+                    </select>
+                    <input
+                        v-else-if="batchEditField"
+                        v-model="batchEditValue"
+                        class="toolbar-control min-w-[10rem]"
+                        :placeholder="batchEditField === 'department' ? '输入申领部门' : '输入经办人'"
+                    >
+                    <button @click="batchUpdate" class="btn-base btn-secondary btn-compact">应用批量修改</button>
+                    <button @click="batchDelete" class="btn-base btn-danger btn-compact ml-auto">
                         批量删除
                     </button>
                 </div>
@@ -302,7 +330,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">日期 <span class="text-red-500">*</span></label>
-                            <input type="date" v-model="newItem.request_date" required class="toolbar-control w-full">
+                            <input type="date" v-model="newItem.request_date" @blur="normalizeDateField(newItem, 'request_date')" required class="toolbar-control w-full">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">部门 <span class="text-red-500">*</span></label>
@@ -365,7 +393,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">申领日期</label>
-                            <input v-model="importPreview.request_date" class="toolbar-control w-full" placeholder="YYYY-MM-DD">
+                            <input v-model="importPreview.request_date" @blur="normalizeDateField(importPreview, 'request_date')" class="toolbar-control w-full" placeholder="YYYY-MM-DD">
                         </div>
                     </div>
 
@@ -646,6 +674,8 @@
             </div>
         </div>
     </div>
-    <script src="/static/app.js"></script>
+    <script src="/static/state.js"></script>
+    <script src="/static/api.js"></script>
+    <script src="/static/ui.js"></script>
 </body>
 </html>

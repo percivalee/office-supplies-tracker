@@ -1,82 +1,6 @@
-        const { createApp } = Vue;
-
-        const app = createApp({
-            data() {
-                return {
-                    items: [],
-                    totalItems: 0,
-                    stats: { total: 0, status_count: {}, payment_count: {}, invoice_count: { issued: 0, not_issued: 0 }},
-                    statuses: ['待采购', '已采购', '已到货', '已发放'],
-                    departments: [],
-                    paymentStatuses: ['未付款', '已付款', '已报销'],
-                    filterKeyword: '',
-                    filterStatus: '',
-                    filterDepartment: '',
-                    filterMonth: '',
-                    currentPage: 1,
-                    pageSize: 20,
-                    pageSizeOptions: [20, 50, 100],
-                    jumpPage: null,
-                    uploading: false,
-                    restoring: false,
-                    importSubmitting: false,
-                    parseResult: null,
-                    error: null,
-                    showAddModal: false,  // 确保初始化为 false
-                    showImportPreviewModal: false,
-                    selectedItems: [],
-                    selectAll: false,
-                    showDuplicateModal: false,
-                    pendingDuplicates: [],
-                    pendingParsedData: null,
-                    showAmountReportModal: false,
-                    amountReportLoading: false,
-                    amountReport: {
-                        summary: {
-                            total_records: 0,
-                            total_amount: 0,
-                            priced_amount: 0,
-                            missing_price_records: 0
-                        },
-                        by_department: [],
-                        by_status: [],
-                        by_month: []
-                    },
-                    showHistoryModal: false,
-                    historyLoading: false,
-                    historyItems: [],
-                    historyTotal: 0,
-                    historyPage: 1,
-                    historyPageSize: 20,
-                    historyKeyword: '',
-                    historyAction: '',
-                    historyMonth: '',
-                    importPreview: {
-                        serial_number: '',
-                        department: '',
-                        handler: '',
-                        request_date: '',
-                        items: []
-                    },
-                    newItem: {
-                        serial_number: '', department: '', handler: '',
-                        request_date: new Date().toISOString().split('T')[0],
-                        item_name: '', quantity: 1, unit_price: null, purchase_link: ''
-                    }
-                };
-            },
-            computed: {
-                totalPages() { return Math.max(1, Math.ceil(this.totalItems / this.pageSize)); },
-                historyTotalPages() {
-                    return Math.max(1, Math.ceil(this.historyTotal / this.historyPageSize));
-                },
-            },
-            mounted() {
-                this.loadAutocomplete();
-                this.loadItems();
-                this.loadStats();
-            },
-            methods: {
+(function (global) {
+    global.AppApi = {
+        methods: {
                 openAddModal() {
                     this.showImportPreviewModal = false;
                     this.showDuplicateModal = false;
@@ -220,13 +144,61 @@
                     this.historyPage = page;
                     this.loadHistory();
                 },
+                normalizeDateText(value) {
+                    const raw = (value || '').toString().trim();
+                    if (!raw) return '';
+                    let normalized = raw
+                        .replace(/年/g, '-')
+                        .replace(/月/g, '-')
+                        .replace(/[日号]/g, '')
+                        .replace(/[/.]/g, '-')
+                        .replace(/T/g, ' ')
+                        .trim();
+                    if (normalized.includes(' ')) {
+                        normalized = normalized.split(/\s+/, 1)[0];
+                    }
+                    normalized = normalized.replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+
+                    let year;
+                    let month;
+                    let day;
+                    let matched = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                    if (matched) {
+                        year = Number(matched[1]);
+                        month = Number(matched[2]);
+                        day = Number(matched[3]);
+                    } else {
+                        matched = normalized.match(/^(\d{4})(\d{2})(\d{2})$/);
+                        if (!matched) return raw;
+                        year = Number(matched[1]);
+                        month = Number(matched[2]);
+                        day = Number(matched[3]);
+                    }
+
+                    const date = new Date(year, month - 1, day);
+                    if (
+                        date.getFullYear() !== year ||
+                        date.getMonth() !== month - 1 ||
+                        date.getDate() !== day
+                    ) {
+                        return raw;
+                    }
+                    const mm = String(month).padStart(2, '0');
+                    const dd = String(day).padStart(2, '0');
+                    return `${year}-${mm}-${dd}`;
+                },
+                normalizeDateField(target, field) {
+                    if (!target || !field) return;
+                    const normalized = this.normalizeDateText(target[field]);
+                    target[field] = normalized;
+                },
                 normalizePreviewData(data) {
                     const items = Array.isArray(data?.items) ? data.items : [];
                     return {
                         serial_number: (data?.serial_number || '').toString().trim(),
                         department: (data?.department || '').toString().trim(),
                         handler: (data?.handler || '').toString().trim(),
-                        request_date: (data?.request_date || '').toString().trim(),
+                        request_date: this.normalizeDateText(data?.request_date),
                         items: items.map((item) => {
                             const qty = Number(item?.quantity);
                             return {
@@ -272,7 +244,7 @@
                         serial_number: normalized.serial_number,
                         department: normalized.department,
                         handler: normalized.handler,
-                        request_date: normalized.request_date,
+                        request_date: this.normalizeDateText(normalized.request_date),
                         items,
                     };
                 },
@@ -471,9 +443,58 @@
                     }
                 },
                 toggleSelectAll() { this.selectedItems = this.selectAll ? this.items.map(i => i.id) : []; },
+                onBatchFieldChange() {
+                    this.batchEditValue = '';
+                },
+                buildBatchUpdatePayload() {
+                    if (!this.batchEditField) {
+                        throw new Error('请先选择要批量修改的字段');
+                    }
+                    if (this.batchEditField === 'status' || this.batchEditField === 'payment_status') {
+                        const value = (this.batchEditValue || '').toString().trim();
+                        if (!value) throw new Error('请选择批量修改值');
+                        return { [this.batchEditField]: value };
+                    }
+                    if (this.batchEditField === 'invoice_issued') {
+                        if (this.batchEditValue !== '1' && this.batchEditValue !== '0') {
+                            throw new Error('请选择发票状态');
+                        }
+                        return { invoice_issued: this.batchEditValue === '1' };
+                    }
+                    if (this.batchEditField === 'department' || this.batchEditField === 'handler') {
+                        const value = (this.batchEditValue || '').toString().trim();
+                        if (!value) throw new Error('批量修改值不能为空');
+                        return { [this.batchEditField]: value };
+                    }
+                    throw new Error('不支持的批量修改字段');
+                },
+                async batchUpdate() {
+                    if (!this.selectedItems.length) return;
+                    try {
+                        const updates = this.buildBatchUpdatePayload();
+                        if (!confirm(`确认批量修改 ${this.selectedItems.length} 条记录？`)) return;
+                        const res = await axios.post('/api/items/batch-update', {
+                            ids: this.selectedItems,
+                            updates,
+                        });
+                        alert(res.data?.message || '批量修改完成');
+                        await this.loadItems();
+                        await this.loadStats();
+                        await this.loadAutocomplete();
+                        this.batchEditValue = '';
+                    } catch (e) {
+                        alert('批量修改失败: ' + (e.response?.data?.detail || e.message));
+                    }
+                },
                 async batchDelete() {
                     if (!confirm(`删除 ${this.selectedItems.length} 条记录？`)) return;
-                    try { await Promise.all(this.selectedItems.map(id => axios.delete(`/api/items/${id}`))); this.selectedItems = []; await this.loadItems(); await this.loadStats(); }
+                    try {
+                        await Promise.all(this.selectedItems.map(id => axios.delete(`/api/items/${id}`)));
+                        this.selectedItems = [];
+                        this.batchEditValue = '';
+                        await this.loadItems();
+                        await this.loadStats();
+                    }
                     catch(e) { alert('删除失败'); }
                 },
                 async submitImport(duplicateAction = null) {
@@ -532,6 +553,7 @@
                             alert('数量必须大于 0');
                             return;
                         }
+                        this.normalizeDateField(this.newItem, 'request_date');
                         const payload = { ...this.newItem, quantity };
                         if (payload.unit_price === '' || payload.unit_price === undefined) {
                             payload.unit_price = null;
@@ -555,8 +577,6 @@
                         alert('添加失败: ' + (e.response?.data?.detail || e.message));
                     }
                 }
-            }
-        }).mount('#app');
-
-        // 显示 app，隐藏加载提示
-        document.getElementById('app').style.display = '';
+            },
+    };
+})(window);

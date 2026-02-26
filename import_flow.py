@@ -2,7 +2,11 @@ from typing import Optional
 
 from fastapi import HTTPException
 
-from database import batch_create_items, get_items, update_item
+from database import (
+    batch_create_items,
+    bulk_update_quantities,
+    get_existing_items_by_keys,
+)
 
 
 def item_key(item: dict) -> tuple[str, str, str]:
@@ -112,8 +116,9 @@ async def confirm_import_payload(normalized_payload: dict, duplicate_action: Opt
     if duplicate_action is not None and duplicate_action not in {"skip", "add", "merge"}:
         raise HTTPException(status_code=400, detail="不支持的操作类型")
 
-    all_items = await get_items()
-    existing_by_key = {item_key(item): item for item in all_items}
+    existing_by_key = await get_existing_items_by_keys(
+        [item_key(item) for item in items_to_create]
+    )
     duplicates = collect_duplicates(items_to_create, existing_by_key)
     preview_data = build_preview_data(normalized_payload, items_to_create)
 
@@ -154,9 +159,7 @@ async def confirm_import_payload(normalized_payload: dict, duplicate_action: Opt
 
         if to_insert:
             created_ids = await batch_create_items(to_insert)
-        for item_id, quantity in quantity_updates.items():
-            await update_item(item_id, {"quantity": quantity})
-        updated_count = len(quantity_updates)
+        updated_count = await bulk_update_quantities(quantity_updates)
 
     return {
         "message": f"导入完成：新增 {len(created_ids)} 条，更新 {updated_count} 条",

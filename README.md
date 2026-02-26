@@ -68,6 +68,7 @@ python desktop.py
 | GET | `/api/items` | 列表查询（支持 `keyword`/`status`/`department`/`month`/`page`/`page_size`） |
 | GET | `/api/items/{id}` | 获取单条记录 |
 | POST | `/api/items` | 手动新增 |
+| POST | `/api/items/batch-update` | 批量更新（状态/部门/经办人/付款/发票等） |
 | PUT | `/api/items/{id}` | 更新记录 |
 | DELETE | `/api/items/{id}` | 删除记录 |
 | POST | `/api/upload` | 上传并解析领用单 |
@@ -115,11 +116,27 @@ office-supplies-tracker/
 ├── database.py
 ├── import_flow.py
 ├── schemas.py
+├── app_runtime.py
+├── api_utils.py
+├── backup_service.py
+├── db/
+│   ├── constants.py
+│   ├── filters.py
+│   ├── history.py
+│   ├── items.py
+│   ├── reports.py
+│   └── schema.py
+├── routers/
+│   ├── imports.py
+│   ├── items.py
+│   └── system.py
 ├── parser.py
 ├── static/
 │   ├── index.html
 │   ├── app.css
-│   └── app.js
+│   ├── state.js
+│   ├── api.js
+│   └── ui.js
 ├── requirements.txt
 ├── start.sh
 ├── README.md
