@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
 from typing import Optional
 import aiosqlite
 import shutil
@@ -18,10 +17,22 @@ from starlette.concurrency import run_in_threadpool
 
 from database import (
     init_db, get_items, count_items, get_stats_summary, get_item, create_item, update_item, delete_item,
-    batch_create_items, get_serial_numbers, get_departments, get_handlers,
+    get_serial_numbers, get_departments, get_handlers,
+    get_amount_report, get_item_history, count_item_history,
     ItemStatus, PaymentStatus, DB_PATH
 )
+from import_flow import (
+    normalize_import_payload,
+    build_preview_data,
+    confirm_import_payload,
+)
 from parser import parse_document
+from schemas import (
+    ItemCreate,
+    ItemUpdate,
+    ImportConfirmRequest,
+    DuplicateHandleRequest,
+)
 
 
 @asynccontextmanager
@@ -69,24 +80,6 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-def _item_key(item: dict) -> tuple[str, str, str]:
-    """构造判重键：流水号 + 物品名称 + 经办人。"""
-    return (
-        str(item.get("serial_number") or "").strip(),
-        str(item.get("item_name") or "").strip(),
-        str(item.get("handler") or "").strip(),
-    )
-
-
-def _safe_quantity(value) -> float:
-    """数量兜底，避免异常值导致合并失败。"""
-    try:
-        qty = float(value)
-        return qty if qty > 0 else 1.0
-    except (TypeError, ValueError):
-        return 1.0
-
-
 def _normalize_month(month: Optional[str]) -> Optional[str]:
     """校验月份参数，格式为 YYYY-MM。"""
     if month is None:
@@ -105,6 +98,16 @@ def _normalize_text_filter(value: Optional[str]) -> Optional[str]:
         return None
     value = value.strip()
     return value or None
+
+
+def _normalize_history_action(value: Optional[str]) -> Optional[str]:
+    """校验历史操作类型。"""
+    value = _normalize_text_filter(value)
+    if value is None:
+        return None
+    if value not in {"create", "update", "delete"}:
+        raise HTTPException(status_code=400, detail="action 仅支持 create / update / delete")
+    return value
 
 
 def _safe_unlink(path: Path) -> None:
@@ -230,195 +233,6 @@ def _restore_from_archive(archive_path: Path) -> dict:
         shutil.rmtree(extract_dir, ignore_errors=True)
         _safe_unlink(snapshot_db)
         shutil.rmtree(snapshot_uploads, ignore_errors=True)
-
-
-def _normalize_import_payload(payload: dict) -> dict:
-    """标准化导入数据，合并同键明细并清理空值。"""
-    serial_number = str(payload.get("serial_number") or "").strip()
-    department = str(payload.get("department") or "").strip()
-    handler = str(payload.get("handler") or "").strip()
-    request_date = str(payload.get("request_date") or "").strip()
-
-    merged_items: dict[tuple[str, str, str], dict] = {}
-    for raw in payload.get("items", []):
-        item_name = str((raw or {}).get("item_name") or "").strip()
-        if not item_name:
-            continue
-        key = (serial_number, item_name, handler)
-        quantity = _safe_quantity((raw or {}).get("quantity"))
-        purchase_link_raw = str((raw or {}).get("purchase_link") or "").strip()
-        purchase_link = purchase_link_raw or None
-
-        if key in merged_items:
-            merged_items[key]["quantity"] += quantity
-            if not merged_items[key].get("purchase_link") and purchase_link:
-                merged_items[key]["purchase_link"] = purchase_link
-            continue
-
-        merged_items[key] = {
-            "serial_number": serial_number,
-            "department": department,
-            "handler": handler,
-            "request_date": request_date,
-            "item_name": item_name,
-            "quantity": quantity,
-            "purchase_link": purchase_link,
-        }
-
-    return {
-        "serial_number": serial_number,
-        "department": department,
-        "handler": handler,
-        "request_date": request_date,
-        "items": list(merged_items.values()),
-    }
-
-
-def _build_preview_data(normalized_payload: dict, items: list[dict]) -> dict:
-    """构造可回显到前端的预览数据。"""
-    return {
-        "serial_number": normalized_payload.get("serial_number", ""),
-        "department": normalized_payload.get("department", ""),
-        "handler": normalized_payload.get("handler", ""),
-        "request_date": normalized_payload.get("request_date", ""),
-        "items": [
-            {
-                "item_name": item.get("item_name", ""),
-                "quantity": _safe_quantity(item.get("quantity")),
-                "purchase_link": item.get("purchase_link"),
-            }
-            for item in items
-        ],
-    }
-
-
-def _collect_duplicates(items: list[dict], existing_by_key: dict) -> list[dict]:
-    """收集与数据库已存在记录冲突的明细。"""
-    duplicates: list[dict] = []
-    for item in items:
-        key = _item_key(item)
-        existing = existing_by_key.get(key)
-        if not existing:
-            continue
-        duplicates.append({
-            "serial_number": item["serial_number"],
-            "item_name": item["item_name"],
-            "handler": item["handler"],
-            "existing_quantity": existing["quantity"],
-            "new_quantity": item["quantity"],
-            "department": item["department"],
-            "existing_id": existing["id"]
-        })
-    return duplicates
-
-
-async def _confirm_import(normalized_payload: dict, duplicate_action: Optional[str] = None) -> dict:
-    """根据导入数据执行确认导入流程。"""
-    items_to_create = normalized_payload.get("items", [])
-    if not items_to_create:
-        raise HTTPException(status_code=400, detail="未识别到可导入的物品明细")
-
-    if duplicate_action is not None and duplicate_action not in {"skip", "add", "merge"}:
-        raise HTTPException(status_code=400, detail="不支持的操作类型")
-
-    all_items = await get_items()
-    existing_by_key = {_item_key(item): item for item in all_items}
-    duplicates = _collect_duplicates(items_to_create, existing_by_key)
-    preview_data = _build_preview_data(normalized_payload, items_to_create)
-
-    if duplicates and duplicate_action is None:
-        return {
-            "message": f"检测到 {len(duplicates)} 个重复物品，请选择处理方式",
-            "has_duplicates": True,
-            "duplicates": duplicates,
-            "parsed_data": preview_data,
-        }
-
-    action = duplicate_action or "add"
-    created_ids: list[int] = []
-    updated_count = 0
-    to_insert: list[dict] = []
-
-    if action == "skip":
-        to_insert = [item for item in items_to_create if _item_key(item) not in existing_by_key]
-        if to_insert:
-            created_ids = await batch_create_items(to_insert)
-    elif action == "add":
-        to_insert = list(items_to_create)
-        created_ids = await batch_create_items(to_insert)
-    elif action == "merge":
-        quantity_updates: dict[int, float] = {}
-        for item in items_to_create:
-            item_key = _item_key(item)
-            qty = _safe_quantity(item.get("quantity"))
-            existing = existing_by_key.get(item_key)
-            if existing:
-                existing_id = existing["id"]
-                base_qty = quantity_updates.get(existing_id, _safe_quantity(existing["quantity"]))
-                quantity_updates[existing_id] = base_qty + qty
-            else:
-                new_item = dict(item)
-                new_item["quantity"] = qty
-                to_insert.append(new_item)
-
-        if to_insert:
-            created_ids = await batch_create_items(to_insert)
-        for item_id, quantity in quantity_updates.items():
-            await update_item(item_id, {"quantity": quantity})
-        updated_count = len(quantity_updates)
-
-    return {
-        "message": f"导入完成：新增 {len(created_ids)} 条，更新 {updated_count} 条",
-        "has_duplicates": False,
-        "parsed_data": preview_data,
-        "created_count": len(created_ids),
-        "created_ids": created_ids,
-        "updated_count": updated_count,
-    }
-
-
-# Pydantic 模型
-class ItemCreate(BaseModel):
-    serial_number: str
-    department: str
-    handler: str
-    request_date: str
-    item_name: str
-    quantity: float = Field(gt=0)
-    purchase_link: Optional[str] = None
-    unit_price: Optional[float] = Field(default=None, ge=0)
-    status: str = "待采购"
-    invoice_issued: bool = False
-    payment_status: str = "未付款"
-
-
-class ItemUpdate(BaseModel):
-    serial_number: Optional[str] = None
-    department: Optional[str] = None
-    handler: Optional[str] = None
-    request_date: Optional[str] = None
-    item_name: Optional[str] = None
-    quantity: Optional[float] = Field(default=None, gt=0)
-    purchase_link: Optional[str] = None
-    unit_price: Optional[float] = Field(default=None, ge=0)
-    status: Optional[str] = None
-    invoice_issued: Optional[bool] = None
-    payment_status: Optional[str] = None
-
-
-class ImportItem(BaseModel):
-    item_name: str = ""
-    quantity: Optional[float] = None
-    purchase_link: Optional[str] = None
-
-
-class ImportConfirmRequest(BaseModel):
-    serial_number: str = ""
-    department: str = ""
-    handler: str = ""
-    request_date: str = ""
-    items: list[ImportItem] = Field(default_factory=list)
-    duplicate_action: Optional[str] = None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -622,14 +436,14 @@ async def upload_and_parse(file: UploadFile = File(...)):
     try:
         # 解析文档（避免阻塞事件循环）
         result = await run_in_threadpool(parse_document, str(file_path))
-        normalized_payload = _normalize_import_payload({
+        normalized_payload = normalize_import_payload({
             "serial_number": result.get("serial_number", ""),
             "department": result.get("department", ""),
             "handler": result.get("handler", ""),
             "request_date": result.get("request_date", ""),
             "items": result.get("items", []),
         })
-        preview_data = _build_preview_data(normalized_payload, normalized_payload["items"])
+        preview_data = build_preview_data(normalized_payload, normalized_payload["items"])
 
         return {
             "message": f"解析完成，共 {len(preview_data['items'])} 条，请确认后导入",
@@ -649,8 +463,8 @@ async def confirm_import(request: ImportConfirmRequest):
     """确认导入（支持人工校正后提交）。"""
     payload = request.model_dump()
     duplicate_action = payload.pop("duplicate_action", None)
-    normalized_payload = _normalize_import_payload(payload)
-    return await _confirm_import(normalized_payload, duplicate_action)
+    normalized_payload = normalize_import_payload(payload)
+    return await confirm_import_payload(normalized_payload, duplicate_action)
 
 
 @app.get("/api/autocomplete")
@@ -671,11 +485,51 @@ async def get_stats():
     return await get_stats_summary()
 
 
-class DuplicateHandleRequest(BaseModel):
-    """处理重复物品的请求"""
-    action: str  # 'skip', 'add', 'merge'
-    duplicates: list[dict]
-    items_data: list[dict]  # 所有待插入的数据
+@app.get("/api/reports/amount")
+async def amount_report(
+    status: Optional[str] = None,
+    department: Optional[str] = None,
+    month: Optional[str] = None,
+    keyword: Optional[str] = None
+):
+    """金额统计报表（支持与列表一致的筛选）。"""
+    status = _normalize_text_filter(status)
+    department = _normalize_text_filter(department)
+    month = _normalize_month(month)
+    keyword = _normalize_text_filter(keyword)
+    return await get_amount_report(
+        status=status, department=department, month=month, keyword=keyword
+    )
+
+
+@app.get("/api/history")
+async def history_list(
+    action: Optional[str] = None,
+    keyword: Optional[str] = None,
+    month: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
+):
+    """变更历史列表。"""
+    if page < 1:
+        raise HTTPException(status_code=400, detail="page 必须 >= 1")
+    if page_size < 1 or page_size > 200:
+        raise HTTPException(status_code=400, detail="page_size 必须在 1-200 之间")
+
+    action = _normalize_history_action(action)
+    keyword = _normalize_text_filter(keyword)
+    month = _normalize_month(month)
+    items = await get_item_history(
+        action=action, keyword=keyword, month=month,
+        page=page, page_size=page_size
+    )
+    total = await count_item_history(action=action, keyword=keyword, month=month)
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.post("/api/upload/handle-duplicates")
@@ -683,14 +537,14 @@ async def handle_duplicates(request: DuplicateHandleRequest):
     """兼容旧前端：处理重复物品"""
     try:
         first = request.items_data[0] if request.items_data else {}
-        normalized_payload = _normalize_import_payload({
+        normalized_payload = normalize_import_payload({
             "serial_number": first.get("serial_number", ""),
             "department": first.get("department", ""),
             "handler": first.get("handler", ""),
             "request_date": first.get("request_date", ""),
             "items": request.items_data,
         })
-        return await _confirm_import(normalized_payload, request.action)
+        return await confirm_import_payload(normalized_payload, request.action)
 
     except HTTPException:
         raise

@@ -16,6 +16,8 @@
 - 服务端分页：支持页码切换、每页条数切换、页码跳转
 - Excel 导出：按当前筛选导出 `.xlsx`
 - 统计面板：总数、待采购、发票、报销等统计
+- 金额统计报表：基于当前筛选汇总总金额，并按部门/状态/月份统计
+- 变更历史：自动记录新增/编辑/删除，支持按关键词/操作/月份检索
 
 ## 技术栈
 
@@ -72,6 +74,8 @@ python desktop.py
 | POST | `/api/import/confirm` | 确认导入（支持人工校正与重复处理） |
 | POST | `/api/upload/handle-duplicates` | 处理重复物品 |
 | GET | `/api/stats` | 获取统计数据 |
+| GET | `/api/reports/amount` | 金额统计报表（支持与列表一致的筛选参数） |
+| GET | `/api/history` | 变更历史列表（`action`/`keyword`/`month`/`page`/`page_size`） |
 | GET | `/api/autocomplete` | 获取部门/经办人/状态候选 |
 | GET | `/api/export` | 导出 Excel（支持与列表一致的筛选参数，含 `keyword`） |
 | GET | `/api/backup` | 下载数据备份（数据库+上传文件） |
@@ -81,6 +85,7 @@ python desktop.py
 
 - `month`：必须是 `YYYY-MM`，例如 `2026-02`
 - `keyword`：模糊搜索关键词（会匹配流水号、物品名、经办人、申领部门）
+- `action`：历史操作类型，仅支持 `create` / `update` / `delete`
 - `page`：页码，从 `1` 开始
 - `page_size`：每页条数，范围 `1-200`
 
@@ -100,15 +105,21 @@ python desktop.py
 | invoice_issued | BOOLEAN | 是否开票 |
 | payment_status | TEXT | 未付款/已付款/已报销 |
 
+变更历史保存在 `item_history` 表，记录每次新增/更新/删除的前后快照与变更字段。
+
 ## 目录结构
 
 ```text
 office-supplies-tracker/
 ├── main.py
 ├── database.py
+├── import_flow.py
+├── schemas.py
 ├── parser.py
 ├── static/
-│   └── index.html
+│   ├── index.html
+│   ├── app.css
+│   └── app.js
 ├── requirements.txt
 ├── start.sh
 ├── README.md

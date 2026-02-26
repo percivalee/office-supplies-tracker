@@ -13,206 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --ink: #15263c;
-            --ink-soft: #516883;
-            --line: #d6e3f1;
-            --brand: #0f6fff;
-            --brand-strong: #0a4ebd;
-            --card-shadow: 0 14px 38px rgba(20, 38, 60, 0.10);
-            --card-shadow-soft: 0 8px 24px rgba(20, 38, 60, 0.08);
-        }
-        * { box-sizing: border-box; }
-        html, body { height: 100%; }
-        body {
-            margin: 0;
-            color: var(--ink);
-            font-family: "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-            background:
-                radial-gradient(1100px 560px at -8% -20%, rgba(15, 111, 255, 0.24), transparent 62%),
-                radial-gradient(900px 520px at 110% -8%, rgba(16, 185, 129, 0.18), transparent 58%),
-                linear-gradient(180deg, #f8fbff 0%, #eff5ff 45%, #edf3fb 100%);
-        }
-        input:focus, select:focus { outline: none; box-shadow: 0 0 0 3px rgba(15, 111, 255, 0.16); }
-        .app-shell { position: relative; z-index: 1; }
-        .card-surface {
-            background: rgba(255, 255, 255, 0.82);
-            border: 1px solid rgba(214, 227, 241, 0.85);
-            box-shadow: var(--card-shadow);
-            backdrop-filter: blur(10px);
-        }
-        .table-shell { flex: 1; min-height: 0; }
-        .table-container { flex: 1; min-height: 0; overflow-y: auto; }
-        .table-container::-webkit-scrollbar { width: 8px; }
-        .table-container::-webkit-scrollbar-track { background: rgba(210, 224, 240, 0.52); border-radius: 4px; }
-        .table-container::-webkit-scrollbar-thumb { background: rgba(114, 142, 173, 0.9); border-radius: 4px; }
-        .table-container::-webkit-scrollbar-thumb:hover { background: rgba(82, 109, 138, 0.95); }
-        .btn-base {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            border-radius: 0.75rem;
-            border: 1px solid transparent;
-            padding: 0.55rem 0.95rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            line-height: 1;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-        }
-        .btn-base:hover {
-            transform: translateY(-1px);
-            box-shadow: var(--card-shadow-soft);
-        }
-        .btn-base:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .btn-primary {
-            color: #fff;
-            background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-        }
-        .btn-secondary {
-            color: #27425f;
-            background: rgba(255, 255, 255, 0.92);
-            border-color: var(--line);
-        }
-        .btn-soft {
-            color: #38526d;
-            background: rgba(241, 247, 255, 0.92);
-            border-color: #dbe8f7;
-        }
-        .btn-success {
-            color: #fff;
-            background: linear-gradient(135deg, #0f9b84, #0a7e6a);
-        }
-        .btn-danger {
-            color: #fff;
-            background: linear-gradient(135deg, #e34b4b, #c33434);
-        }
-        .btn-compact {
-            padding: 0.45rem 0.7rem;
-            border-radius: 0.65rem;
-            font-size: 0.8rem;
-        }
-        .status-chip {
-            display: inline-flex;
-            align-items: center;
-            border-radius: 9999px;
-            padding: 0.25rem 0.55rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            line-height: 1.2;
-        }
-        .status-info { color: #0f60ce; background: #e8f1ff; }
-        .status-success { color: #0a7f65; background: #def7f0; }
-        .status-error { color: #c73f3f; background: #fee8e8; }
-        .metric-card {
-            border-radius: 1rem;
-            border: 1px solid rgba(216, 228, 243, 0.86);
-            background: rgba(255, 255, 255, 0.82);
-            box-shadow: var(--card-shadow-soft);
-            padding: 0.95rem;
-            transition: all 0.2s ease;
-        }
-        .metric-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--card-shadow);
-        }
-        .metric-value {
-            font-size: 1.65rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            line-height: 1;
-        }
-        .metric-label {
-            margin-top: 0.35rem;
-            font-size: 0.75rem;
-            color: var(--ink-soft);
-        }
-        .metric-icon-wrap {
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.8rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .metric-blue .metric-value, .metric-blue .metric-icon { color: #0f6fff; }
-        .metric-blue .metric-icon-wrap { background: #e7f0ff; }
-        .metric-amber .metric-value, .metric-amber .metric-icon { color: #cc8b08; }
-        .metric-amber .metric-icon-wrap { background: #fff5dc; }
-        .metric-green .metric-value, .metric-green .metric-icon { color: #0f8f72; }
-        .metric-green .metric-icon-wrap { background: #def7f0; }
-        .metric-cyan .metric-value, .metric-cyan .metric-icon { color: #0e7ea7; }
-        .metric-cyan .metric-icon-wrap { background: #e1f4fb; }
-        .toolbar-control {
-            border: 1px solid var(--line);
-            border-radius: 0.7rem;
-            background: rgba(255, 255, 255, 0.95);
-            color: #243b56;
-            font-size: 0.875rem;
-            padding: 0.45rem 0.75rem;
-            min-height: 2.2rem;
-        }
-        .records-table thead th {
-            color: #4b6280;
-            background: rgba(248, 251, 255, 0.92);
-            font-weight: 600;
-        }
-        .table-input {
-            width: 100%;
-            border: 1px solid #dbe6f2;
-            border-radius: 0.6rem;
-            background: #fff;
-            color: #1e324b;
-            font-size: 0.85rem;
-            padding: 0.34rem 0.5rem;
-            transition: all 0.18s ease;
-        }
-        .table-input:focus {
-            border-color: rgba(15, 111, 255, 0.45);
-            box-shadow: 0 0 0 3px rgba(15, 111, 255, 0.14);
-        }
-        .modal-overlay {
-            background: rgba(7, 20, 40, 0.50);
-            backdrop-filter: blur(4px);
-        }
-        .modal-panel {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid rgba(214, 227, 241, 0.9);
-            box-shadow: var(--card-shadow);
-            backdrop-filter: blur(10px);
-        }
-        .page-indicator {
-            border-radius: 0.68rem;
-            background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-            color: #fff;
-            padding: 0.42rem 0.75rem;
-            font-size: 0.8rem;
-            font-weight: 700;
-        }
-        .animate-rise { animation: rise 0.42s ease both; }
-        .delay-1 { animation-delay: 60ms; }
-        .delay-2 { animation-delay: 120ms; }
-        @keyframes rise {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 1024px) {
-            body { overflow: auto; }
-            #app { height: auto; min-height: 100vh; }
-            .table-shell { min-height: 460px; }
-        }
-        @media (max-width: 640px) {
-            .toolbar-group { width: 100%; }
-            .toolbar-control { width: 100%; }
-        }
-    </style>
+        <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="h-screen overflow-hidden">
     <!-- Vue 加载失败提示 -->
@@ -261,6 +62,12 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
                         添加记录
+                    </button>
+                    <button @click="openAmountReportModal" class="btn-base btn-soft">
+                        金额报表
+                    </button>
+                    <button @click="openHistoryModal" class="btn-base btn-soft">
+                        变更历史
                     </button>
                     <span v-if="uploading" class="status-chip status-info">正在解析...</span>
                     <span v-if="parseResult" class="status-chip status-success">导入完成：{{ parseResult.items?.length || 0 }} 条</span>
@@ -637,411 +444,208 @@
                 </div>
             </div>
         </div>
+
+        <!-- 金额统计报表 -->
+        <div v-if="showAmountReportModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-3" @click.self="closeAmountReportModal">
+            <div class="modal-panel rounded-2xl w-full max-w-6xl mx-1 max-h-[92vh] flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-emerald-600 to-teal-700 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-white">金额统计报表</h3>
+                    <button @click="closeAmountReportModal" class="text-white/80 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 overflow-y-auto space-y-4">
+                    <div class="text-sm text-slate-500">
+                        当前报表按主列表筛选条件统计（关键词 / 状态 / 部门 / 月份）。
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="metric-card">
+                            <div class="text-sm text-slate-500">记录数</div>
+                            <div class="metric-value text-slate-700">{{ amountReport.summary.total_records || 0 }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="text-sm text-slate-500">总金额</div>
+                            <div class="metric-value text-emerald-700">¥ {{ formatCurrency(amountReport.summary.total_amount) }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="text-sm text-slate-500">已填单价金额</div>
+                            <div class="metric-value text-blue-700">¥ {{ formatCurrency(amountReport.summary.priced_amount) }}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="text-sm text-slate-500">未填单价记录</div>
+                            <div class="metric-value text-amber-700">{{ amountReport.summary.missing_price_records || 0 }}</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <div class="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                            <div class="px-4 py-3 border-b border-slate-200 font-medium text-slate-700">按部门统计</div>
+                            <div class="max-h-72 overflow-y-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="sticky top-0 bg-slate-50 z-10">
+                                        <tr>
+                                            <th class="text-left px-3 py-2 border-b border-slate-200">部门</th>
+                                            <th class="text-left px-3 py-2 border-b border-slate-200 w-24">记录数</th>
+                                            <th class="text-left px-3 py-2 border-b border-slate-200 w-40">金额</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="row in amountReport.by_department" :key="`dept-${row.department}`" class="border-b border-slate-100">
+                                            <td class="px-3 py-2">{{ row.department || '未填写' }}</td>
+                                            <td class="px-3 py-2">{{ row.record_count }}</td>
+                                            <td class="px-3 py-2">¥ {{ formatCurrency(row.total_amount) }}</td>
+                                        </tr>
+                                        <tr v-if="!amountReport.by_department.length">
+                                            <td colspan="3" class="px-3 py-8 text-center text-slate-400">暂无数据</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                                <div class="px-4 py-3 border-b border-slate-200 font-medium text-slate-700">按状态统计</div>
+                                <div class="max-h-40 overflow-y-auto">
+                                    <table class="w-full text-sm">
+                                        <thead class="sticky top-0 bg-slate-50 z-10">
+                                            <tr>
+                                                <th class="text-left px-3 py-2 border-b border-slate-200">状态</th>
+                                                <th class="text-left px-3 py-2 border-b border-slate-200 w-24">记录数</th>
+                                                <th class="text-left px-3 py-2 border-b border-slate-200 w-40">金额</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="row in amountReport.by_status" :key="`status-${row.status}`" class="border-b border-slate-100">
+                                                <td class="px-3 py-2">{{ row.status || '未填写' }}</td>
+                                                <td class="px-3 py-2">{{ row.record_count }}</td>
+                                                <td class="px-3 py-2">¥ {{ formatCurrency(row.total_amount) }}</td>
+                                            </tr>
+                                            <tr v-if="!amountReport.by_status.length">
+                                                <td colspan="3" class="px-3 py-8 text-center text-slate-400">暂无数据</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                                <div class="px-4 py-3 border-b border-slate-200 font-medium text-slate-700">按月份统计（近 12 个月）</div>
+                                <div class="max-h-40 overflow-y-auto">
+                                    <table class="w-full text-sm">
+                                        <thead class="sticky top-0 bg-slate-50 z-10">
+                                            <tr>
+                                                <th class="text-left px-3 py-2 border-b border-slate-200">月份</th>
+                                                <th class="text-left px-3 py-2 border-b border-slate-200 w-24">记录数</th>
+                                                <th class="text-left px-3 py-2 border-b border-slate-200 w-40">金额</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="row in amountReport.by_month" :key="`month-${row.month}`" class="border-b border-slate-100">
+                                                <td class="px-3 py-2">{{ row.month || '未填写' }}</td>
+                                                <td class="px-3 py-2">{{ row.record_count }}</td>
+                                                <td class="px-3 py-2">¥ {{ formatCurrency(row.total_amount) }}</td>
+                                            </tr>
+                                            <tr v-if="!amountReport.by_month.length">
+                                                <td colspan="3" class="px-3 py-8 text-center text-slate-400">暂无数据</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border-t border-slate-200 bg-white/90 flex justify-end gap-2">
+                    <button @click="loadAmountReport" :disabled="amountReportLoading" class="btn-base btn-soft">
+                        {{ amountReportLoading ? '刷新中...' : '刷新报表' }}
+                    </button>
+                    <button @click="closeAmountReportModal" class="btn-base btn-primary">关闭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 变更历史 -->
+        <div v-if="showHistoryModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-3" @click.self="closeHistoryModal">
+            <div class="modal-panel rounded-2xl w-full max-w-6xl mx-1 max-h-[92vh] flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-slate-700 to-slate-900 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-white">变更历史</h3>
+                    <button @click="closeHistoryModal" class="text-white/80 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 border-b border-slate-200 bg-white/90">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input
+                            v-model="historyKeyword"
+                            @keyup.enter="applyHistoryFilter"
+                            class="toolbar-control min-w-[14rem]"
+                            placeholder="搜索：流水号 / 物品名 / 经办人 / 部门"
+                        >
+                        <select v-model="historyAction" @change="applyHistoryFilter" class="toolbar-control">
+                            <option value="">全部操作</option>
+                            <option value="create">新增</option>
+                            <option value="update">修改</option>
+                            <option value="delete">删除</option>
+                        </select>
+                        <input type="month" v-model="historyMonth" @change="applyHistoryFilter" class="toolbar-control">
+                        <button @click="applyHistoryFilter" class="btn-base btn-soft">搜索</button>
+                        <button @click="clearHistoryFilters" class="btn-base btn-soft">重置</button>
+                        <span class="ml-auto text-sm text-slate-500">共 {{ historyTotal }} 条</span>
+                    </div>
+                </div>
+                <div class="p-4 overflow-y-auto">
+                    <div class="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                        <table class="w-full text-sm">
+                            <thead class="sticky top-0 bg-slate-50 z-10">
+                                <tr>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200 w-44">时间</th>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200 w-20">操作</th>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200 w-24">记录ID</th>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200 w-36">流水号</th>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200">物品</th>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200 w-28">经办人</th>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200">变更字段</th>
+                                    <th class="text-left px-3 py-2 border-b border-slate-200">详情</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in historyItems" :key="`hist-${row.id}`" class="border-b border-slate-100">
+                                    <td class="px-3 py-2">{{ row.created_at }}</td>
+                                    <td class="px-3 py-2">{{ historyActionLabel(row.action) }}</td>
+                                    <td class="px-3 py-2">{{ row.item_id }}</td>
+                                    <td class="px-3 py-2">{{ row.serial_number || '-' }}</td>
+                                    <td class="px-3 py-2">{{ row.item_name || '-' }}</td>
+                                    <td class="px-3 py-2">{{ row.handler || '-' }}</td>
+                                    <td class="px-3 py-2">{{ (row.changed_fields || []).map(historyFieldLabel).join('、') || '-' }}</td>
+                                    <td class="px-3 py-2 text-slate-600">{{ historyDetailText(row) }}</td>
+                                </tr>
+                                <tr v-if="!historyItems.length">
+                                    <td colspan="8" class="px-3 py-8 text-center text-slate-400">
+                                        {{ historyLoading ? '加载中...' : '暂无数据' }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="p-4 border-t border-slate-200 bg-white/90 flex flex-wrap items-center justify-between gap-3">
+                    <div class="text-sm text-slate-500">
+                        显示 {{ historyTotal === 0 ? 0 : ((historyPage - 1) * historyPageSize + 1) }}-{{ Math.min(historyPage * historyPageSize, historyTotal) }} / 共 {{ historyTotal }} 条
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="goHistoryPage(historyPage - 1)" :disabled="historyPage <= 1" class="btn-base btn-secondary btn-compact">上一页</button>
+                        <span class="page-indicator">{{ historyPage }}/{{ historyTotalPages }}</span>
+                        <button @click="goHistoryPage(historyPage + 1)" :disabled="historyPage >= historyTotalPages" class="btn-base btn-secondary btn-compact">下一页</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-
-    <script>
-        const { createApp } = Vue;
-
-        const app = createApp({
-            data() {
-                return {
-                    items: [],
-                    totalItems: 0,
-                    stats: { total: 0, status_count: {}, payment_count: {}, invoice_count: { issued: 0, not_issued: 0 }},
-                    statuses: ['待采购', '已采购', '已到货', '已发放'],
-                    departments: [],
-                    paymentStatuses: ['未付款', '已付款', '已报销'],
-                    filterKeyword: '',
-                    filterStatus: '',
-                    filterDepartment: '',
-                    filterMonth: '',
-                    currentPage: 1,
-                    pageSize: 20,
-                    pageSizeOptions: [20, 50, 100],
-                    jumpPage: null,
-                    uploading: false,
-                    restoring: false,
-                    importSubmitting: false,
-                    parseResult: null,
-                    error: null,
-                    showAddModal: false,  // 确保初始化为 false
-                    showImportPreviewModal: false,
-                    selectedItems: [],
-                    selectAll: false,
-                    showDuplicateModal: false,
-                    pendingDuplicates: [],
-                    pendingParsedData: null,
-                    importPreview: {
-                        serial_number: '',
-                        department: '',
-                        handler: '',
-                        request_date: '',
-                        items: []
-                    },
-                    newItem: {
-                        serial_number: '', department: '', handler: '',
-                        request_date: new Date().toISOString().split('T')[0],
-                        item_name: '', quantity: 1, unit_price: null, purchase_link: ''
-                    }
-                };
-            },
-            computed: {
-                totalPages() { return Math.max(1, Math.ceil(this.totalItems / this.pageSize)); },
-            },
-            mounted() {
-                this.loadAutocomplete();
-                this.loadItems();
-                this.loadStats();
-            },
-            methods: {
-                openAddModal() {
-                    this.showImportPreviewModal = false;
-                    this.showDuplicateModal = false;
-                    this.showAddModal = true;
-                },
-                closeAddModal() {
-                    this.showAddModal = false;
-                },
-                normalizePreviewData(data) {
-                    const items = Array.isArray(data?.items) ? data.items : [];
-                    return {
-                        serial_number: (data?.serial_number || '').toString().trim(),
-                        department: (data?.department || '').toString().trim(),
-                        handler: (data?.handler || '').toString().trim(),
-                        request_date: (data?.request_date || '').toString().trim(),
-                        items: items.map((item) => {
-                            const qty = Number(item?.quantity);
-                            return {
-                                item_name: (item?.item_name || '').toString().trim(),
-                                quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
-                                purchase_link: (item?.purchase_link || '').toString().trim(),
-                            };
-                        })
-                    };
-                },
-                openImportPreview(data) {
-                    this.importPreview = this.normalizePreviewData(data);
-                    this.showAddModal = false;
-                    this.showDuplicateModal = false;
-                    this.showImportPreviewModal = true;
-                },
-                closeImportPreview() {
-                    this.showImportPreviewModal = false;
-                    this.pendingDuplicates = [];
-                    this.pendingParsedData = null;
-                    this.importSubmitting = false;
-                },
-                addPreviewItem() {
-                    this.importPreview.items.push({
-                        item_name: '',
-                        quantity: 1,
-                        purchase_link: '',
-                    });
-                },
-                removePreviewItem(index) {
-                    this.importPreview.items.splice(index, 1);
-                },
-                sanitizeImportPayload(data) {
-                    const normalized = this.normalizePreviewData(data);
-                    const items = normalized.items
-                        .filter((item) => item.item_name)
-                        .map((item) => ({
-                            item_name: item.item_name,
-                            quantity: Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0 ? Number(item.quantity) : 1,
-                            purchase_link: item.purchase_link || null,
-                        }));
-                    return {
-                        serial_number: normalized.serial_number,
-                        department: normalized.department,
-                        handler: normalized.handler,
-                        request_date: normalized.request_date,
-                        items,
-                    };
-                },
-                closeDuplicateModal() {
-                    this.showDuplicateModal = false;
-                    if (this.pendingParsedData) {
-                        this.openImportPreview(this.pendingParsedData);
-                    }
-                    this.pendingDuplicates = [];
-                    this.pendingParsedData = null;
-                },
-                async loadAutocomplete() {
-                    try {
-                        const res = await axios.get('/api/autocomplete');
-                        this.departments = res.data.departments || [];
-                        if (Array.isArray(res.data.statuses) && res.data.statuses.length) {
-                            this.statuses = res.data.statuses;
-                        }
-                        if (Array.isArray(res.data.payment_statuses) && res.data.payment_statuses.length) {
-                            this.paymentStatuses = res.data.payment_statuses;
-                        }
-                    } catch(e) {
-                        console.error(e);
-                    }
-                },
-                async loadItems() {
-                    try {
-                        const params = {
-                            page: this.currentPage,
-                            page_size: this.pageSize,
-                        };
-                        if (this.filterKeyword) params.keyword = this.filterKeyword;
-                        if (this.filterStatus) params.status = this.filterStatus;
-                        if (this.filterDepartment) params.department = this.filterDepartment;
-                        if (this.filterMonth) params.month = this.filterMonth;
-                        const res = await axios.get('/api/items', { params });
-                        this.items = Array.isArray(res.data.items) ? res.data.items : [];
-                        this.totalItems = typeof res.data.total === 'number' ? res.data.total : this.items.length;
-                        this.selectedItems = [];
-                        this.selectAll = false;
-
-                        const maxPage = Math.max(1, Math.ceil(this.totalItems / this.pageSize));
-                        if (this.currentPage > maxPage) {
-                            this.currentPage = maxPage;
-                            await this.loadItems();
-                        }
-                    }
-                    catch(e) { console.error(e); }
-                },
-                async loadStats() {
-                    try { const res = await axios.get('/api/stats'); this.stats = res.data; }
-                    catch(e) { console.error(e); }
-                },
-                handleFilter() {
-                    this.currentPage = 1;
-                    this.loadItems();
-                },
-                goToPage(page) {
-                    if (page < 1 || page > this.totalPages || page === this.currentPage) return;
-                    this.currentPage = page;
-                    this.loadItems();
-                },
-                changePageSize() {
-                    if (!this.pageSize || this.pageSize < 1) this.pageSize = 20;
-                    this.currentPage = 1;
-                    this.loadItems();
-                },
-                jumpToPage() {
-                    const page = Number(this.jumpPage);
-                    if (!Number.isInteger(page)) return;
-                    const target = Math.min(this.totalPages, Math.max(1, page));
-                    this.jumpPage = null;
-                    this.goToPage(target);
-                },
-                clearFilters() {
-                    this.filterKeyword = '';
-                    this.filterStatus = '';
-                    this.filterDepartment = '';
-                    this.filterMonth = '';
-                    this.handleFilter();
-                },
-                exportExcel() {
-                    const params = new URLSearchParams();
-                    if (this.filterKeyword) params.append('keyword', this.filterKeyword);
-                    if (this.filterStatus) params.append('status', this.filterStatus);
-                    if (this.filterDepartment) params.append('department', this.filterDepartment);
-                    if (this.filterMonth) params.append('month', this.filterMonth);
-                    const query = params.toString();
-                    const url = query ? `/api/export?${query}` : '/api/export';
-                    const newWindow = window.open(url, '_blank');
-                    if (!newWindow) window.location.href = url;
-                },
-                normalizeItemUpdatePayload(data) {
-                    const payload = { ...data };
-                    if (Object.prototype.hasOwnProperty.call(payload, 'quantity')) {
-                        const qty = Number(payload.quantity);
-                        if (!Number.isFinite(qty) || qty <= 0) {
-                            throw new Error('数量必须大于 0');
-                        }
-                        payload.quantity = qty;
-                    }
-                    if (Object.prototype.hasOwnProperty.call(payload, 'unit_price')) {
-                        if (payload.unit_price === '' || payload.unit_price === null || payload.unit_price === undefined) {
-                            payload.unit_price = null;
-                        } else {
-                            const unitPrice = Number(payload.unit_price);
-                            if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-                                throw new Error('单价不能为负数');
-                            }
-                            payload.unit_price = unitPrice;
-                        }
-                    }
-                    return payload;
-                },
-                async updateItem(id, data) {
-                    try {
-                        const payload = this.normalizeItemUpdatePayload(data);
-                        await axios.put(`/api/items/${id}`, payload);
-                        await this.loadStats();
-                    }
-                    catch(e) {
-                        alert('更新失败: ' + (e.response?.data?.detail || e.message));
-                        await this.loadItems();
-                    }
-                },
-                async deleteItem(id) {
-                    if (!confirm('确定删除吗？')) return;
-                    try { await axios.delete(`/api/items/${id}`); await this.loadItems(); await this.loadStats(); }
-                    catch(e) { alert('删除失败'); }
-                },
-                async toggleInvoice(item) {
-                    item.invoice_issued = !item.invoice_issued;
-                    await this.updateItem(item.id, { invoice_issued: item.invoice_issued });
-                },
-                backupData() {
-                    const url = '/api/backup';
-                    const newWindow = window.open(url, '_blank');
-                    if (!newWindow) window.location.href = url;
-                },
-                handleRestoreSelect(e) {
-                    const files = e.target.files;
-                    if (files.length) this.restoreFromBackup(files[0]);
-                    e.target.value = '';
-                },
-                async restoreFromBackup(file) {
-                    const ext = (file.name.split('.').pop() || '').toLowerCase();
-                    if (ext !== 'zip') {
-                        alert('请选择 .zip 备份文件');
-                        return;
-                    }
-                    if (!confirm('恢复会覆盖当前数据库和上传文件，是否继续？')) {
-                        return;
-                    }
-
-                    this.restoring = true;
-                    try {
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        const res = await axios.post('/api/restore', formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' }
-                        });
-                        alert(res.data.message || '恢复成功');
-                        await this.loadAutocomplete();
-                        await this.loadItems();
-                        await this.loadStats();
-                    } catch(e) {
-                        alert('恢复失败: ' + (e.response?.data?.detail || e.message));
-                    } finally {
-                        this.restoring = false;
-                    }
-                },
-                handleFileSelect(e) { const files = e.target.files; if (files.length) this.uploadFile(files[0]); },
-                async uploadFile(file) {
-                    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-                    const validExts = ['pdf', 'png', 'jpg', 'jpeg', 'jfif'];
-                    const ext = (file.name.split('.').pop() || '').toLowerCase();
-                    if (!validTypes.includes(file.type) && !validExts.includes(ext)) {
-                        this.error = '仅支持 PDF 或 图片格式';
-                        return;
-                    }
-                    this.uploading = true;
-                    this.error = null;
-                    this.parseResult = null;
-                    try {
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        const res = await axios.post('/api/upload', formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' }
-                        });
-                        this.openImportPreview(res.data.parsed_data);
-                    } catch(e) {
-                        console.error('上传错误:', e);
-                        this.error = '上传失败: ' + (e.response?.data?.detail || e.message);
-                    } finally {
-                        this.uploading = false;
-                    }
-                },
-                toggleSelectAll() { this.selectedItems = this.selectAll ? this.items.map(i => i.id) : []; },
-                async batchDelete() {
-                    if (!confirm(`删除 ${this.selectedItems.length} 条记录？`)) return;
-                    try { await Promise.all(this.selectedItems.map(id => axios.delete(`/api/items/${id}`))); this.selectedItems = []; await this.loadItems(); await this.loadStats(); }
-                    catch(e) { alert('删除失败'); }
-                },
-                async submitImport(duplicateAction = null) {
-                    const source = duplicateAction ? this.pendingParsedData : this.importPreview;
-                    if (!source) {
-                        alert('没有可导入的数据');
-                        return;
-                    }
-                    const payload = this.sanitizeImportPayload(source);
-                    if (!payload.items.length) {
-                        alert('请至少保留一条有效物品明细');
-                        return;
-                    }
-
-                    this.importSubmitting = true;
-                    try {
-                        const res = await axios.post('/api/import/confirm', {
-                            ...payload,
-                            duplicate_action: duplicateAction,
-                        });
-                        if (res.data.has_duplicates) {
-                            this.pendingDuplicates = res.data.duplicates || [];
-                            this.pendingParsedData = payload;
-                            this.showImportPreviewModal = false;
-                            this.showDuplicateModal = true;
-                            return;
-                        }
-
-                        this.showImportPreviewModal = false;
-                        this.showDuplicateModal = false;
-                        this.pendingDuplicates = [];
-                        this.pendingParsedData = null;
-                        this.parseResult = res.data.parsed_data;
-                        this.importPreview = {
-                            serial_number: '',
-                            department: '',
-                            handler: '',
-                            request_date: '',
-                            items: []
-                        };
-                        await this.loadItems();
-                        await this.loadStats();
-                    } catch(e) {
-                        alert('导入失败: ' + (e.response?.data?.detail || e.message));
-                    } finally {
-                        this.importSubmitting = false;
-                    }
-                },
-                async handleDuplicates(action) {
-                    await this.submitImport(action);
-                },
-                async manualAdd() {
-                    try {
-                        const quantity = Number(this.newItem.quantity);
-                        if (!Number.isFinite(quantity) || quantity <= 0) {
-                            alert('数量必须大于 0');
-                            return;
-                        }
-                        const payload = { ...this.newItem, quantity };
-                        if (payload.unit_price === '' || payload.unit_price === undefined) {
-                            payload.unit_price = null;
-                        }
-                        await axios.post('/api/items', payload);
-                        this.closeAddModal();
-                        // 重置表单
-                        this.newItem = {
-                            serial_number: '',
-                            department: this.newItem.department,
-                            handler: this.newItem.handler,
-                            request_date: this.newItem.request_date,
-                            item_name: '',
-                            quantity: 1,
-                            unit_price: null,
-                            purchase_link: ''
-                        };
-                        await this.loadItems();
-                        await this.loadStats();
-                    } catch(e) {
-                        alert('添加失败: ' + (e.response?.data?.detail || e.message));
-                    }
-                }
-            }
-        }).mount('#app');
-
-        // 显示 app，隐藏加载提示
-        document.getElementById('app').style.display = '';
-    </script>
+    <script src="/static/app.js"></script>
 </body>
 </html>
