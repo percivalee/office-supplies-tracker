@@ -686,16 +686,27 @@
                             alert('数量必须大于 0');
                             return;
                         }
+
+                        // 如果用户没填流水号，自动生成一个
+                        let sn = (this.newItem.serial_number || '').trim();
+                        if (!sn) {
+                            const now = new Date();
+                            const ts = now.toISOString().replace(/[-:T]/g, '').slice(2, 12);
+                            sn = `REQ-${ts}`;
+                        }
+
                         this.normalizeDateField(this.newItem, 'request_date');
-                        const payload = { ...this.newItem, quantity };
+                        const payload = { ...this.newItem, serial_number: sn, quantity };
+                        
                         if (payload.unit_price === '' || payload.unit_price === undefined) {
                             payload.unit_price = null;
                         }
                         await axios.post('/api/items', payload);
                         this.closeAddModal();
-                        // 重置表单
+
+                        // 商务友好重置：保留部门、经办人、日期，只清空物品、数量、单价和链接，方便连续录入
                         this.newItem = {
-                            serial_number: '',
+                            serial_number: '', 
                             department: this.newItem.department,
                             handler: this.newItem.handler,
                             request_date: this.newItem.request_date,

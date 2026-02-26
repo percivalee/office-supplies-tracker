@@ -1,198 +1,168 @@
-        :root {
-            --ink: #15263c;
-            --ink-soft: #516883;
-            --line: #d6e3f1;
-            --brand: #0f6fff;
-            --brand-strong: #0a4ebd;
-            --card-shadow: 0 14px 38px rgba(20, 38, 60, 0.10);
-            --card-shadow-soft: 0 8px 24px rgba(20, 38, 60, 0.08);
-        }
-        * { box-sizing: border-box; }
-        html, body { height: 100%; }
-        body {
-            margin: 0;
-            color: var(--ink);
-            font-family: "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-            background:
-                radial-gradient(1100px 560px at -8% -20%, rgba(15, 111, 255, 0.24), transparent 62%),
-                radial-gradient(900px 520px at 110% -8%, rgba(16, 185, 129, 0.18), transparent 58%),
-                linear-gradient(180deg, #f8fbff 0%, #eff5ff 45%, #edf3fb 100%);
-        }
-        input:focus, select:focus { outline: none; box-shadow: 0 0 0 3px rgba(15, 111, 255, 0.16); }
-        .app-shell { position: relative; z-index: 1; }
-        .card-surface {
-            background: rgba(255, 255, 255, 0.82);
-            border: 1px solid rgba(214, 227, 241, 0.85);
-            box-shadow: var(--card-shadow);
-            backdrop-filter: blur(10px);
-        }
-        .table-shell { flex: 1; min-height: 0; }
-        .table-container { flex: 1; min-height: 0; overflow-y: auto; }
-        .table-container::-webkit-scrollbar { width: 8px; }
-        .table-container::-webkit-scrollbar-track { background: rgba(210, 224, 240, 0.52); border-radius: 4px; }
-        .table-container::-webkit-scrollbar-thumb { background: rgba(114, 142, 173, 0.9); border-radius: 4px; }
-        .table-container::-webkit-scrollbar-thumb:hover { background: rgba(82, 109, 138, 0.95); }
-        .btn-base {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            border-radius: 0.75rem;
-            border: 1px solid transparent;
-            padding: 0.55rem 0.95rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            line-height: 1;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-        }
-        .btn-base:hover {
-            transform: translateY(-1px);
-            box-shadow: var(--card-shadow-soft);
-        }
-        .btn-base:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .btn-primary {
-            color: #fff;
-            background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-        }
-        .btn-secondary {
-            color: #27425f;
-            background: rgba(255, 255, 255, 0.92);
-            border-color: var(--line);
-        }
-        .btn-soft {
-            color: #38526d;
-            background: rgba(241, 247, 255, 0.92);
-            border-color: #dbe8f7;
-        }
-        .btn-success {
-            color: #fff;
-            background: linear-gradient(135deg, #0f9b84, #0a7e6a);
-        }
-        .btn-danger {
-            color: #fff;
-            background: linear-gradient(135deg, #e34b4b, #c33434);
-        }
-        .btn-compact {
-            padding: 0.45rem 0.7rem;
-            border-radius: 0.65rem;
-            font-size: 0.8rem;
-        }
-        .status-chip {
-            display: inline-flex;
-            align-items: center;
-            border-radius: 9999px;
-            padding: 0.25rem 0.55rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            line-height: 1.2;
-        }
-        .status-info { color: #0f60ce; background: #e8f1ff; }
-        .status-success { color: #0a7f65; background: #def7f0; }
-        .status-error { color: #c73f3f; background: #fee8e8; }
-        .metric-card {
-            border-radius: 1rem;
-            border: 1px solid rgba(216, 228, 243, 0.86);
-            background: rgba(255, 255, 255, 0.82);
-            box-shadow: var(--card-shadow-soft);
-            padding: 0.95rem;
-            transition: all 0.2s ease;
-        }
-        .metric-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--card-shadow);
-        }
-        .metric-value {
-            font-size: 1.65rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            line-height: 1;
-        }
-        .metric-label {
-            margin-top: 0.35rem;
-            font-size: 0.75rem;
-            color: var(--ink-soft);
-        }
-        .metric-icon-wrap {
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.8rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .metric-blue .metric-value, .metric-blue .metric-icon { color: #0f6fff; }
-        .metric-blue .metric-icon-wrap { background: #e7f0ff; }
-        .metric-amber .metric-value, .metric-amber .metric-icon { color: #cc8b08; }
-        .metric-amber .metric-icon-wrap { background: #fff5dc; }
-        .metric-green .metric-value, .metric-green .metric-icon { color: #0f8f72; }
-        .metric-green .metric-icon-wrap { background: #def7f0; }
-        .metric-cyan .metric-value, .metric-cyan .metric-icon { color: #0e7ea7; }
-        .metric-cyan .metric-icon-wrap { background: #e1f4fb; }
-        .toolbar-control {
-            border: 1px solid var(--line);
-            border-radius: 0.7rem;
-            background: rgba(255, 255, 255, 0.95);
-            color: #243b56;
-            font-size: 0.875rem;
-            padding: 0.45rem 0.75rem;
-            min-height: 2.2rem;
-        }
-        .records-table thead th {
-            color: #4b6280;
-            background: rgba(248, 251, 255, 0.92);
-            font-weight: 600;
-        }
-        .table-input {
-            width: 100%;
-            border: 1px solid #dbe6f2;
-            border-radius: 0.6rem;
-            background: #fff;
-            color: #1e324b;
-            font-size: 0.85rem;
-            padding: 0.34rem 0.5rem;
-            transition: all 0.18s ease;
-        }
-        .table-input:focus {
-            border-color: rgba(15, 111, 255, 0.45);
-            box-shadow: 0 0 0 3px rgba(15, 111, 255, 0.14);
-        }
-        .modal-overlay {
-            background: rgba(7, 20, 40, 0.50);
-            backdrop-filter: blur(4px);
-        }
-        .modal-panel {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid rgba(214, 227, 241, 0.9);
-            box-shadow: var(--card-shadow);
-            backdrop-filter: blur(10px);
-        }
-        .page-indicator {
-            border-radius: 0.68rem;
-            background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-            color: #fff;
-            padding: 0.42rem 0.75rem;
-            font-size: 0.8rem;
-            font-weight: 700;
-        }
-        .animate-rise { animation: rise 0.42s ease both; }
-        .delay-1 { animation-delay: 60ms; }
-        .delay-2 { animation-delay: 120ms; }
-        @keyframes rise {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 1024px) {
-            body { overflow: auto; }
-            #app { height: auto; min-height: 100vh; }
-            .table-shell { min-height: 460px; }
-        }
-        @media (max-width: 640px) {
-            .toolbar-group { width: 100%; }
-            .toolbar-control { width: 100%; }
-        }
+:root {
+    /* 商务专业配色方案 */
+    --brand-primary: #1e3a8a;    /* 普鲁士蓝 - 代表严谨与信任 */
+    --brand-secondary: #3b82f6;  /* 现代蓝 - 活跃交互 */
+    --bg-main: #f8fafc;          /* 极浅灰蓝背景 - 柔和护眼 */
+    --bg-card: #ffffff;          /* 纯白卡片 - 清晰纯净 */
+    
+    --text-main: #1e293b;        /* 深灰蓝 - 核心文字 */
+    --text-muted: #64748b;       /* 辅助文字 */
+    --line-border: #e2e8f0;      /* 标准边框线 */
+    
+    --success: #059669;          /* 稳重的绿色 */
+    --warning: #d97706;          /* 稳重的琥珀色 */
+    --danger: #dc2626;           /* 警告红 */
+    
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; font-family: "Inter", "Noto Sans SC", system-ui, sans-serif; }
+
+body {
+    margin: 0;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 顶部导航增强商务感 */
+.card-surface {
+    background: var(--bg-card);
+    border: 1px solid var(--line-border);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s;
+}
+
+/* 专业按钮样式 */
+.btn-base {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    padding: 0.6rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.btn-primary {
+    background-color: var(--brand-primary);
+    color: white;
+}
+.btn-primary:hover { background-color: #172554; }
+
+.btn-secondary {
+    background-color: white;
+    border-color: var(--line-border);
+    color: var(--text-main);
+}
+.btn-secondary:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+
+.btn-soft {
+    background-color: #eff6ff;
+    color: var(--brand-secondary);
+    border-color: #dbeafe;
+}
+.btn-soft:hover { background-color: #dbeafe; }
+
+/* 统计卡片：简洁有力 */
+.metric-card {
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.metric-value {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: var(--brand-primary);
+    margin-top: 0.25rem;
+}
+
+/* 表格：高可读性 */
+.table-container { 
+    background: white;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+.records-table thead th {
+    background: #f1f5f9;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    padding: 0.85rem 1rem;
+    text-align: left;
+    border-bottom: 2px solid var(--line-border);
+}
+
+.records-table tbody tr {
+    border-bottom: 1px solid var(--line-border);
+}
+.records-table tbody tr:hover { background-color: #f8fafc; }
+
+.table-input {
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    background: transparent;
+    transition: all 0.2s;
+}
+
+.table-input:hover { border-color: var(--line-border); background: #ffffff; }
+.table-input:focus { border-color: var(--brand-secondary); background: #ffffff; outline: none; }
+
+/* 弹窗：稳重且规范 */
+.modal-overlay {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 50; /* 提升层级，高于表格标题的 z-index */
+}
+
+.modal-panel {
+    background: white;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+    border-radius: 1rem;
+    border: 1px solid var(--line-border);
+}
+
+.modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--line-border);
+    background: #ffffff;
+}
+
+.modal-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--brand-primary);
+}
+
+/* 状态标签：商务标准 */
+.status-pill {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
