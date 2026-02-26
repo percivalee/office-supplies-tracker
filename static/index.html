@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>办公用品采购追踪系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.12/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.7.9/dist/axios.min.js"></script>
+    <style>
+        input:focus, select:focus { outline: none; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5); }
+        .table-container { max-height: calc(100vh - 400px); overflow-y: auto; }
+        .table-container::-webkit-scrollbar { width: 8px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+    <!-- Vue 加载失败提示 -->
+    <div id="vue-error" style="display:none;" class="fixed top-0 left-0 right-0 bg-red-600 text-white p-4 text-center z-[9999]">
+        ⚠️ Vue 加载失败！请检查网络连接或刷新页面
+        <button onclick="location.reload()" class="ml-4 bg-white text-red-600 px-4 py-1 rounded">重试</button>
+    </div>
+
+    <div id="app" class="container mx-auto px-4 py-6 max-w-7xl" style="display:none;">
+        <!-- 头部 -->
+        <header class="mb-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                        办公用品采购追踪系统
+                    </h1>
+                    <p class="text-gray-500 text-sm mt-1">智能识别 · 在线管理 · 高效追踪</p>
+                </div>
+                <button @click="openAddModal" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-md">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    添加记录
+                </button>
+            </div>
+        </header>
+
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-2xl font-bold text-blue-600">{{ stats.total }}</div>
+                        <div class="text-xs text-gray-500 mt-1">总记录</div>
+                    </div>
+                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-2xl font-bold text-yellow-600">{{ stats.status_count['待采购'] || 0 }}</div>
+                        <div class="text-xs text-gray-500 mt-1">待采购</div>
+                    </div>
+                    <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-2xl font-bold text-green-600">{{ stats.invoice_count.issued }}</div>
+                        <div class="text-xs text-gray-500 mt-1">已开发票</div>
+                    </div>
+                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-2xl font-bold text-purple-600">{{ stats.payment_count['已报销'] || 0 }}</div>
+                        <div class="text-xs text-gray-500 mt-1">已报销</div>
+                    </div>
+                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="mb-6">
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-700">上传领用单</h2>
+                </div>
+
+                <div @dragover.prevent @drop.prevent="handleDrop" @click="$refs.fileInput && $refs.fileInput.click()"
+                     class="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-gray-300">
+                    <input type="file" ref="fileInput" @change="handleFileSelect" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+                    <svg class="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="text-gray-600 text-base mb-1">拖拽文件到此处，或点击选择</p>
+                    <p class="text-sm text-gray-400">支持 PDF、PNG、JPG 格式</p>
+                </div>
+
+                <!-- 上传进度 -->
+                <div v-if="uploading" class="mt-4">
+                    <p class="text-sm text-gray-600 mb-2">正在解析...</p>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full animate-pulse" style="width: 60%"></div>
+                    </div>
+                </div>
+
+                <!-- 解析结果 -->
+                <div v-if="parseResult" class="mt-4 p-4 bg-green-50 rounded-lg border border-green-200 flex items-center gap-3">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <p class="text-sm text-green-800 font-medium">解析成功</p>
+                        <p class="text-xs text-green-600">识别到 {{ parseResult.items?.length || 0 }} 条明细</p>
+                    </div>
+                    <button @click="parseResult = null" class="ml-auto text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- 错误提示 -->
+                <div v-if="error" class="mt-4 p-4 bg-red-50 rounded-lg border border-red-200 flex items-center gap-3">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M9 12h.01M12 12h.01M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <p class="text-sm text-red-600 flex-1">{{ error }}</p>
+                    <button @click="error = null" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 采购记录表格（全屏宽） -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+            <div class="p-4 border-b border-gray-100">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-lg font-semibold text-gray-700 mr-auto">采购记录</h2>
+                    <select v-model="filterStatus" @change="handleFilter" class="border rounded-lg px-3 py-1.5 text-sm">
+                        <option value="">全部状态</option>
+                        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                    </select>
+                    <select v-model="filterDepartment" @change="handleFilter" class="border rounded-lg px-3 py-1.5 text-sm min-w-36">
+                        <option value="">全部部门</option>
+                        <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
+                    </select>
+                    <input type="month" v-model="filterMonth" @change="handleFilter" class="border rounded-lg px-3 py-1.5 text-sm">
+                    <button @click="clearFilters" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">重置筛选</button>
+                    <button @click="exportExcel" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">导出为 Excel</button>
+                </div>
+            </div>
+
+                <!-- 批量操作栏 -->
+                <div v-if="selectedItems.length > 0" class="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+                    <span class="text-sm text-blue-700">已选择 <strong>{{ selectedItems.length }}</strong> 条记录</span>
+                    <button @click="batchDelete" class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+                        批量删除
+                    </button>
+                </div>
+
+                <!-- 表格 -->
+                <div class="table-container">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-gray-50 z-10">
+                            <tr>
+                                <th class="p-3 w-12 border-b">
+                                    <input type="checkbox" v-model="selectAll" @change="toggleSelectAll" class="w-4 h-4">
+                                </th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-40">申领部门</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b">物品名称</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-20">数量</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-24">单价</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-32">链接</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-28">状态</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-20">发票</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-28">付款</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-20">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="item in paginatedItems" :key="item.id" class="border-b hover:bg-blue-50/50" :class="{'bg-blue-50/30': selectedItems.includes(item.id)}">
+                                <td class="p-3">
+                                    <input type="checkbox" :value="item.id" v-model="selectedItems" class="w-4 h-4">
+                                </td>
+                                <td class="p-3">
+                                    <span class="text-gray-700 text-sm block truncate" :title="item.department || ''">{{ item.department || '—' }}</span>
+                                </td>
+                                <td class="p-3">
+                                    <input type="text" v-model="item.item_name" @blur="updateItem(item.id, { item_name: item.item_name })"
+                                           class="w-full border border-gray-200 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500">
+                                </td>
+                                <td class="p-3">
+                                    <input type="number" v-model.number="item.quantity" @blur="updateItem(item.id, { quantity: item.quantity })"
+                                           class="w-full border border-gray-200 rounded px-2 py-1 text-center text-sm focus:ring-2 focus:ring-blue-500" min="0" step="0.1">
+                                </td>
+                                <td class="p-3">
+                                    <input type="number" v-model.number="item.unit_price" @blur="updateItem(item.id, { unit_price: item.unit_price })"
+                                           placeholder="—" class="w-full border border-gray-200 rounded px-2 py-1 text-center text-sm focus:ring-2 focus:ring-blue-500" min="0" step="0.01">
+                                </td>
+                                <td class="p-3">
+                                    <a v-if="item.purchase_link" :href="item.purchase_link" target="_blank"
+                                       class="text-blue-600 hover:underline text-xs block truncate" :title="item.purchase_link">
+                                        链接
+                                    </a>
+                                    <span v-else class="text-gray-300 text-xs">—</span>
+                                </td>
+                                <td class="p-3">
+                                    <select v-model="item.status" @change="updateItem(item.id, { status: item.status })"
+                                            :class="{'bg-yellow-100 text-yellow-800': item.status === '待采购', 'bg-blue-100 text-blue-800': item.status === '已采购', 'bg-green-100 text-green-800': item.status === '已到货', 'bg-gray-100 text-gray-800': item.status === '已发放'}"
+                                            class="rounded-lg px-2 py-1.5 text-xs font-medium border-0 cursor-pointer">
+                                        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                                    </select>
+                                </td>
+                                <td class="p-3">
+                                    <button @click="toggleInvoice(item)"
+                                            :class="item.invoice_issued ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'"
+                                            class="px-3 py-1.5 rounded-lg text-xs transition font-medium">
+                                        {{ item.invoice_issued ? '已开' : '未开' }}
+                                    </button>
+                                </td>
+                                <td class="p-3">
+                                    <select v-model="item.payment_status" @change="updateItem(item.id, { payment_status: item.payment_status })"
+                                            class="rounded-lg px-2 py-1.5 text-xs border-0 cursor-pointer bg-gray-50">
+                                        <option v-for="p in paymentStatuses" :key="p" :value="p">{{ p }}</option>
+                                    </select>
+                                </td>
+                                <td class="p-3">
+                                    <button @click="deleteItem(item.id)" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg transition">
+                                        删除
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="paginatedItems.length === 0">
+                                <td colspan="10" class="p-12 text-center text-gray-400">暂无记录</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分页 -->
+                <div v-if="totalPages > 1" class="p-4 border-t border-gray-100 flex items-center justify-between">
+                    <div class="text-sm text-gray-500">
+                        显示 {{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, filteredItems.length) }} / 共 {{ filteredItems.length }} 条
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button @click="currentPage--" :disabled="currentPage === 1" class="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-50">上一页</button>
+                        <span class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">{{ currentPage }}</span>
+                        <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-50">下一页</button>
+                    </div>
+                </div>
+            </div>
+
+        <!-- 添加记录模态框 -->
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeAddModal">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+                <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700">
+                    <h3 class="text-lg font-semibold text-white">添加采购记录</h3>
+                    <button @click="closeAddModal" class="text-white/80 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <form @submit.prevent="manualAdd" class="p-6 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">流水号</label>
+                            <input v-model="newItem.serial_number" placeholder="自动生成" class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">日期 <span class="text-red-500">*</span></label>
+                            <input type="date" v-model="newItem.request_date" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">部门 <span class="text-red-500">*</span></label>
+                            <input v-model="newItem.department" placeholder="部门名称" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">经办人 <span class="text-red-500">*</span></label>
+                            <input v-model="newItem.handler" placeholder="经办人姓名" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">物品名称 <span class="text-red-500">*</span></label>
+                            <input v-model="newItem.item_name" placeholder="物品名称" required class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">数量 <span class="text-red-500">*</span></label>
+                            <input v-model.number="newItem.quantity" type="number" placeholder="1" required min="0" step="0.1" class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">单价</label>
+                            <input v-model.number="newItem.unit_price" type="number" placeholder="0.00" min="0" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">购买链接</label>
+                            <input v-model="newItem.purchase_link" type="url" placeholder="https://..." class="w-full border rounded-lg px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" @click="closeAddModal" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">取消</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">添加</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 重复物品处理模态框 -->
+        <div v-if="showDuplicateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeDuplicateModal">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+                <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-yellow-500 to-yellow-600 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-white">检测到重复物品</h3>
+                    <button @click="closeDuplicateModal" class="text-white/80 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <p class="text-sm text-gray-600 mb-4">以下 {{ pendingDuplicates.length }} 个物品在系统中已存在，请选择处理方式：</p>
+                    <ul class="text-sm space-y-0 mb-6 max-h-48 overflow-y-auto border rounded-lg divide-y">
+                        <li v-for="dup in pendingDuplicates" :key="(dup.serial_number || '') + '-' + (dup.item_name || '') + '-' + (dup.handler || '')" class="flex justify-between px-3 py-2">
+                            <span class="font-medium">{{ dup.item_name }}</span>
+                            <span class="text-gray-500 ml-4 shrink-0">现有 {{ dup.existing_quantity }} → 新增 {{ dup.new_quantity }}</span>
+                        </li>
+                    </ul>
+                    <div class="flex gap-3">
+                        <button @click="closeDuplicateModal" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">取消</button>
+                        <button @click="handleDuplicates('skip')" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">跳过重复</button>
+                        <button @click="handleDuplicates('merge')" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">合并数量</button>
+                        <button @click="handleDuplicates('add')" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">全部新增</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        const app = createApp({
+            data() {
+                return {
+                    items: [],
+                    stats: { total: 0, status_count: {}, payment_count: {}, invoice_count: { issued: 0, not_issued: 0 }},
+                    statuses: ['待采购', '已采购', '已到货', '已发放'],
+                    departments: [],
+                    paymentStatuses: ['未付款', '已付款', '已报销'],
+                    filterStatus: '',
+                    filterDepartment: '',
+                    filterMonth: '',
+                    currentPage: 1,
+                    pageSize: 20,
+                    uploading: false,
+                    isDragging: false,
+                    parseResult: null,
+                    error: null,
+                    showAddModal: false,  // 确保初始化为 false
+                    selectedItems: [],
+                    selectAll: false,
+                    showDuplicateModal: false,
+                    pendingDuplicates: [],
+                    pendingParsedData: null,
+                    newItem: {
+                        serial_number: '', department: '', handler: '',
+                        request_date: new Date().toISOString().split('T')[0],
+                        item_name: '', quantity: 1, unit_price: null, purchase_link: ''
+                    }
+                };
+            },
+            computed: {
+                filteredItems() {
+                    let result = this.items;
+                    if (this.filterStatus) result = result.filter(item => item.status === this.filterStatus);
+                    return result;
+                },
+                totalPages() { return Math.ceil(this.filteredItems.length / this.pageSize); },
+                paginatedItems() {
+                    const start = (this.currentPage - 1) * this.pageSize;
+                    return this.filteredItems.slice(start, start + this.pageSize);
+                }
+            },
+            mounted() {
+                this.loadAutocomplete();
+                this.loadItems();
+                this.loadStats();
+            },
+            methods: {
+                openAddModal() {
+                    this.showDuplicateModal = false;
+                    this.showAddModal = true;
+                },
+                closeAddModal() {
+                    this.showAddModal = false;
+                },
+                closeDuplicateModal() {
+                    this.showDuplicateModal = false;
+                    this.pendingDuplicates = [];
+                    this.pendingParsedData = null;
+                },
+                async loadAutocomplete() {
+                    try {
+                        const res = await axios.get('/api/autocomplete');
+                        this.departments = res.data.departments || [];
+                        if (Array.isArray(res.data.statuses) && res.data.statuses.length) {
+                            this.statuses = res.data.statuses;
+                        }
+                        if (Array.isArray(res.data.payment_statuses) && res.data.payment_statuses.length) {
+                            this.paymentStatuses = res.data.payment_statuses;
+                        }
+                    } catch(e) {
+                        console.error(e);
+                    }
+                },
+                async loadItems() {
+                    try {
+                        const params = {};
+                        if (this.filterStatus) params.status = this.filterStatus;
+                        if (this.filterDepartment) params.department = this.filterDepartment;
+                        if (this.filterMonth) params.month = this.filterMonth;
+                        const res = await axios.get('/api/items', { params });
+                        this.items = res.data.items;
+                    }
+                    catch(e) { console.error(e); }
+                },
+                async loadStats() {
+                    try { const res = await axios.get('/api/stats'); this.stats = res.data; }
+                    catch(e) { console.error(e); }
+                },
+                handleFilter() {
+                    this.currentPage = 1;
+                    this.selectedItems = [];
+                    this.selectAll = false;
+                    this.loadItems();
+                },
+                clearFilters() {
+                    this.filterStatus = '';
+                    this.filterDepartment = '';
+                    this.filterMonth = '';
+                    this.handleFilter();
+                },
+                exportExcel() {
+                    const params = new URLSearchParams();
+                    if (this.filterStatus) params.append('status', this.filterStatus);
+                    if (this.filterDepartment) params.append('department', this.filterDepartment);
+                    if (this.filterMonth) params.append('month', this.filterMonth);
+                    const query = params.toString();
+                    const url = query ? `/api/export?${query}` : '/api/export';
+                    const newWindow = window.open(url, '_blank');
+                    if (!newWindow) window.location.href = url;
+                },
+                async updateItem(id, data) {
+                    try { await axios.put(`/api/items/${id}`, data); await this.loadStats(); }
+                    catch(e) { alert('更新失败'); }
+                },
+                async deleteItem(id) {
+                    if (!confirm('确定删除吗？')) return;
+                    try { await axios.delete(`/api/items/${id}`); await this.loadItems(); await this.loadStats(); }
+                    catch(e) { alert('删除失败'); }
+                },
+                async toggleInvoice(item) {
+                    item.invoice_issued = !item.invoice_issued;
+                    await this.updateItem(item.id, { invoice_issued: item.invoice_issued });
+                },
+                handleDrop(e) { this.isDragging = false; const files = e.dataTransfer.files; if (files.length) this.uploadFile(files[0]); },
+                handleFileSelect(e) { const files = e.target.files; if (files.length) this.uploadFile(files[0]); },
+                async uploadFile(file) {
+                    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+                    if (!validTypes.includes(file.type)) {
+                        this.error = '仅支持 PDF 或 图片格式';
+                        return;
+                    }
+                    this.uploading = true;
+                    this.error = null;
+                    this.parseResult = null;
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const res = await axios.post('/api/upload', formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' }
+                        });
+                        if (res.data.has_duplicates) {
+                            this.showAddModal = false;
+                            this.pendingDuplicates = res.data.duplicates;
+                            this.pendingParsedData = res.data.parsed_data;
+                            this.showDuplicateModal = true;
+                        } else {
+                            this.parseResult = res.data.parsed_data;
+                            await this.loadItems();
+                            await this.loadStats();
+                        }
+                    } catch(e) {
+                        console.error('上传错误:', e);
+                        this.error = '上传失败: ' + (e.response?.data?.detail || e.message);
+                    } finally {
+                        this.uploading = false;
+                    }
+                },
+                toggleSelectAll() { this.selectedItems = this.selectAll ? this.paginatedItems.map(i => i.id) : []; },
+                async batchDelete() {
+                    if (!confirm(`删除 ${this.selectedItems.length} 条记录？`)) return;
+                    try { await Promise.all(this.selectedItems.map(id => axios.delete(`/api/items/${id}`))); this.selectedItems = []; await this.loadItems(); await this.loadStats(); }
+                    catch(e) { alert('删除失败'); }
+                },
+                async handleDuplicates(action) {
+                    try {
+                        const p = this.pendingParsedData;
+                        const items_data = p.items.map(item => ({
+                            serial_number: p.serial_number || '',
+                            department: p.department || '',
+                            handler: p.handler || '',
+                            request_date: p.request_date || '',
+                            item_name: item.item_name || '',
+                            quantity: item.quantity || 1,
+                            purchase_link: item.purchase_link || null,
+                        }));
+                        const res = await axios.post('/api/upload/handle-duplicates', {
+                            action,
+                            duplicates: this.pendingDuplicates,
+                            items_data,
+                        });
+                        this.showDuplicateModal = false;
+                        this.pendingDuplicates = [];
+                        this.pendingParsedData = null;
+                        this.parseResult = res.data.parsed_data;
+                        await this.loadItems();
+                        await this.loadStats();
+                    } catch(e) {
+                        alert('处理失败: ' + (e.response?.data?.detail || e.message));
+                    }
+                },
+                async manualAdd() {
+                    try {
+                        await axios.post('/api/items', this.newItem);
+                        this.closeAddModal();
+                        // 重置表单
+                        this.newItem = {
+                            serial_number: '',
+                            department: this.newItem.department,
+                            handler: this.newItem.handler,
+                            request_date: this.newItem.request_date,
+                            item_name: '',
+                            quantity: 1,
+                            unit_price: null,
+                            purchase_link: ''
+                        };
+                        await this.loadItems();
+                        await this.loadStats();
+                    } catch(e) {
+                        alert('添加失败');
+                    }
+                }
+            }
+        }).mount('#app');
+
+        // 显示 app，隐藏加载提示
+        document.getElementById('app').style.display = '';
+    </script>
+</body>
+</html>
