@@ -285,8 +285,9 @@ class DocumentParser:
                     item_name_parts.append(text)
             elif col_ranges["quantity"][0] <= x <= col_ranges["quantity"][1]:
                 # 数量列
-                if re.match(r'\d+\.?\d*', text):
-                    quantity_text = text
+                qty_match = re.search(r'(\d+(?:\.\d+)?)', text)
+                if qty_match:
+                    quantity_text = qty_match.group(1)
             elif col_ranges["remark"][0] <= x <= col_ranges["remark"][1]:
                 # 备注列
                 remark_text += " " + text

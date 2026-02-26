@@ -15,6 +15,11 @@ HOST = "127.0.0.1"
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
 STARTUP_TIMEOUT_SECONDS = 45
+REQUIRED_FRONTEND_ASSETS = (
+    Path("static/vendor/vue.global.prod.js"),
+    Path("static/vendor/axios.min.js"),
+    Path("static/vendor/tailwind.min.css"),
+)
 
 
 def _runtime_dir() -> Path:
@@ -127,9 +132,25 @@ class DesktopApp:
             if sig is not None:
                 signal.signal(sig, _handler)
 
+    def _ensure_frontend_assets(self) -> None:
+        """桌面版强制使用本地前端依赖，避免离线白屏。"""
+        missing = [
+            str(asset)
+            for asset in REQUIRED_FRONTEND_ASSETS
+            if not (self.runtime_dir / asset).exists()
+        ]
+        if missing:
+            missing_text = ", ".join(missing)
+            raise RuntimeError(
+                "缺少前端离线资源: "
+                f"{missing_text}。源码模式请先运行 `python3 scripts/prepare_vendor_assets.py`；"
+                "打包版请在打包前执行该命令后重新构建。"
+            )
+
     def run(self) -> None:
         atexit.register(self.shutdown_backend)
         self._install_signal_handlers()
+        self._ensure_frontend_assets()
 
         self.start_backend()
 

@@ -11,6 +11,8 @@ fi
 
 source venv/bin/activate
 
+python3 scripts/prepare_vendor_assets.py
+
 pyinstaller --noconfirm --clean build.spec
 
 echo "打包完成：dist/office-supplies-desktop/"

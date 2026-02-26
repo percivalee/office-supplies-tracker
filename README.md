@@ -54,6 +54,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ```bash
 source venv/bin/activate
+python3 scripts/prepare_vendor_assets.py
 python desktop.py
 ```
 
@@ -124,3 +125,4 @@ office-supplies-tracker/
 - 图片上传建议使用高清截图，避免带审批系统按钮区域
 - 解析后请抽样核对关键字段（部门、日期、数量）
 - 数据库文件 `office_supplies.db` 默认在项目根目录（已被 `.gitignore` 忽略）
+- 桌面版离线运行前请确保 `static/vendor/` 下资源已准备（可执行 `python3 scripts/prepare_vendor_assets.py`）

@@ -95,3 +95,13 @@
 ### 8.3 数据备份
 
 备份项目根目录的 `office_supplies.db` 即可。
+
+### 8.4 桌面版启动提示缺少前端资源
+
+先执行：
+
+```bash
+python3 scripts/prepare_vendor_assets.py
+```
+
+再启动 `python desktop.py` 或重新打包。

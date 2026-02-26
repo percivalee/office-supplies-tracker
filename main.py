@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 import aiosqlite
 import shutil
@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
+from uuid import uuid4
+from starlette.concurrency import run_in_threadpool
 
 from database import (
     init_db, get_items, count_items, get_stats_summary, get_item, create_item, update_item, delete_item,
@@ -28,6 +30,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="办公用品采购追踪系统", lifespan=lifespan)
+
+ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".jfif"}
 
 def _resolve_runtime_dir() -> Path:
     """运行目录（源码模式为项目目录，打包模式为 exe 所在目录）。"""
@@ -108,6 +112,20 @@ def _safe_unlink(path: Path) -> None:
         pass
 
 
+def _build_upload_path(filename: str) -> Path:
+    """构造唯一上传路径，并校验扩展名。"""
+    safe_filename = Path(filename).name if filename else ""
+    if not safe_filename:
+        raise HTTPException(status_code=400, detail="无效的文件名")
+
+    extension = Path(safe_filename).suffix.lower()
+    if extension not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="仅支持 PDF / PNG / JPG / JPEG / JFIF 文件")
+
+    unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}{extension}"
+    return UPLOAD_DIR / unique_name
+
+
 # Pydantic 模型
 class ItemCreate(BaseModel):
     serial_number: str
@@ -115,9 +133,9 @@ class ItemCreate(BaseModel):
     handler: str
     request_date: str
     item_name: str
-    quantity: float
+    quantity: float = Field(gt=0)
     purchase_link: Optional[str] = None
-    unit_price: Optional[float] = None
+    unit_price: Optional[float] = Field(default=None, ge=0)
     status: str = "待采购"
     invoice_issued: bool = False
     payment_status: str = "未付款"
@@ -129,9 +147,9 @@ class ItemUpdate(BaseModel):
     handler: Optional[str] = None
     request_date: Optional[str] = None
     item_name: Optional[str] = None
-    quantity: Optional[float] = None
+    quantity: Optional[float] = Field(default=None, gt=0)
     purchase_link: Optional[str] = None
-    unit_price: Optional[float] = None
+    unit_price: Optional[float] = Field(default=None, ge=0)
     status: Optional[str] = None
     invoice_issued: Optional[bool] = None
     payment_status: Optional[str] = None
@@ -252,10 +270,16 @@ async def update_item_endpoint(item_id: int, updates: ItemUpdate):
     update_data = updates.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="未提供可更新字段")
+    if "quantity" in update_data and update_data["quantity"] is None:
+        raise HTTPException(status_code=400, detail="quantity 不能为空")
     try:
         success = await update_item(item_id, update_data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except aiosqlite.IntegrityError as e:
+        if "UNIQUE constraint failed" in str(e):
+            raise HTTPException(status_code=409, detail="记录已存在（流水号+物品名称+经办人）")
+        raise HTTPException(status_code=400, detail="更新失败：字段值不合法")
     if not success:
         raise HTTPException(status_code=404, detail="物品不存在")
     return {"message": "更新成功"}
@@ -273,21 +297,16 @@ async def delete_item_endpoint(item_id: int):
 @app.post("/api/upload")
 async def upload_and_parse(file: UploadFile = File(...)):
     """上传文件并解析"""
-    # 校验并净化文件名，防止路径穿越
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="无效的文件名")
-    safe_filename = Path(file.filename).name
-    if not safe_filename:
-        raise HTTPException(status_code=400, detail="无效的文件名")
+    file_path = _build_upload_path(file.filename or "")
 
-    # 保存文件
-    file_path = UPLOAD_DIR / safe_filename
+    # 保存文件（使用唯一临时名，避免同名覆盖）
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
+    await file.close()
 
     try:
-        # 解析文档
-        result = parse_document(str(file_path))
+        # 解析文档（避免阻塞事件循环）
+        result = await run_in_threadpool(parse_document, str(file_path))
 
         # 构建待插入的记录
         items_to_create = []
@@ -298,7 +317,7 @@ async def upload_and_parse(file: UploadFile = File(...)):
                 "handler": result.get("handler", ""),
                 "request_date": result.get("request_date", ""),
                 "item_name": item.get("item_name", ""),
-                "quantity": item.get("quantity", 1),
+                "quantity": _safe_quantity(item.get("quantity")),
                 "purchase_link": item.get("purchase_link"),
             })
 

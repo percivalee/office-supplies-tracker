@@ -186,6 +186,26 @@ async def update_item(item_id: int, updates: dict) -> bool:
     """更新物品记录"""
     if not updates:
         return False
+    if "quantity" in updates:
+        quantity = updates["quantity"]
+        if quantity is None:
+            raise ValueError("quantity 不能为空")
+        try:
+            quantity = float(quantity)
+        except (TypeError, ValueError):
+            raise ValueError("quantity 必须为数字")
+        if quantity <= 0:
+            raise ValueError("quantity 必须 > 0")
+        updates["quantity"] = quantity
+    if "unit_price" in updates and updates["unit_price"] is not None:
+        unit_price = updates["unit_price"]
+        try:
+            unit_price = float(unit_price)
+        except (TypeError, ValueError):
+            raise ValueError("unit_price 必须为数字")
+        if unit_price < 0:
+            raise ValueError("unit_price 不能为负数")
+        updates["unit_price"] = unit_price
     invalid = set(updates.keys()) - ALLOWED_COLUMNS
     if invalid:
         raise ValueError(f"不允许的字段: {invalid}")

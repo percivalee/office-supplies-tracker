@@ -7,9 +7,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>办公用品采购追踪系统</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.12/dist/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios@1.7.9/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="/static/vendor/tailwind.min.css"
+          onerror="if(!window.__tailwindFallback){window.__tailwindFallback=true;var s=document.createElement('script');s.src='https://cdn.tailwindcss.com';document.head.appendChild(s);}">
+    <script src="/static/vendor/vue.global.prod.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/vue@3.5.12/dist/vue.global.prod.js';"></script>
+    <script src="/static/vendor/axios.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/axios@1.7.9/dist/axios.min.js';"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -222,7 +223,7 @@
     </div>
 
     <div id="app" class="app-shell mx-auto w-full max-w-[1800px] h-screen px-4 py-4 flex flex-col" style="display:none;">
-        <input type="file" ref="fileInput" @change="handleFileSelect" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+        <input type="file" ref="fileInput" @change="handleFileSelect" accept=".pdf,.png,.jpg,.jpeg,.jfif" class="hidden">
 
         <!-- 头部 -->
         <header class="mb-3 shrink-0 card-surface rounded-2xl px-5 py-4 animate-rise">
@@ -381,7 +382,7 @@
                                 </td>
                                 <td class="p-3">
                                     <input type="number" v-model.number="item.quantity" @blur="updateItem(item.id, { quantity: item.quantity })"
-                                           class="table-input text-center" min="0" step="0.1">
+                                           class="table-input text-center" min="0.1" step="0.1">
                                 </td>
                                 <td class="p-3">
                                     <input type="number" v-model.number="item.unit_price" @blur="updateItem(item.id, { unit_price: item.unit_price })"
@@ -489,7 +490,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">数量 <span class="text-red-500">*</span></label>
-                            <input v-model.number="newItem.quantity" type="number" placeholder="1" required min="0" step="0.1" class="toolbar-control w-full">
+                            <input v-model.number="newItem.quantity" type="number" placeholder="1" required min="0.1" step="0.1" class="toolbar-control w-full">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">单价</label>
@@ -539,6 +540,12 @@
     </div>
 
     <script>
+        if (!window.Vue || !window.axios) {
+            const errorEl = document.getElementById('vue-error');
+            if (errorEl) errorEl.style.display = '';
+            throw new Error('前端依赖加载失败：请检查本地 vendor 资源或网络连接。');
+        }
+
         const { createApp } = Vue;
 
         const app = createApp({
@@ -672,9 +679,38 @@
                     const newWindow = window.open(url, '_blank');
                     if (!newWindow) window.location.href = url;
                 },
+                normalizeItemUpdatePayload(data) {
+                    const payload = { ...data };
+                    if (Object.prototype.hasOwnProperty.call(payload, 'quantity')) {
+                        const qty = Number(payload.quantity);
+                        if (!Number.isFinite(qty) || qty <= 0) {
+                            throw new Error('数量必须大于 0');
+                        }
+                        payload.quantity = qty;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(payload, 'unit_price')) {
+                        if (payload.unit_price === '' || payload.unit_price === null || payload.unit_price === undefined) {
+                            payload.unit_price = null;
+                        } else {
+                            const unitPrice = Number(payload.unit_price);
+                            if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+                                throw new Error('单价不能为负数');
+                            }
+                            payload.unit_price = unitPrice;
+                        }
+                    }
+                    return payload;
+                },
                 async updateItem(id, data) {
-                    try { await axios.put(`/api/items/${id}`, data); await this.loadStats(); }
-                    catch(e) { alert('更新失败'); }
+                    try {
+                        const payload = this.normalizeItemUpdatePayload(data);
+                        await axios.put(`/api/items/${id}`, payload);
+                        await this.loadStats();
+                    }
+                    catch(e) {
+                        alert('更新失败: ' + (e.response?.data?.detail || e.message));
+                        await this.loadItems();
+                    }
                 },
                 async deleteItem(id) {
                     if (!confirm('确定删除吗？')) return;
@@ -688,7 +724,9 @@
                 handleFileSelect(e) { const files = e.target.files; if (files.length) this.uploadFile(files[0]); },
                 async uploadFile(file) {
                     const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-                    if (!validTypes.includes(file.type)) {
+                    const validExts = ['pdf', 'png', 'jpg', 'jpeg', 'jfif'];
+                    const ext = (file.name.split('.').pop() || '').toLowerCase();
+                    if (!validTypes.includes(file.type) && !validExts.includes(ext)) {
                         this.error = '仅支持 PDF 或 图片格式';
                         return;
                     }
@@ -753,7 +791,16 @@
                 },
                 async manualAdd() {
                     try {
-                        await axios.post('/api/items', this.newItem);
+                        const quantity = Number(this.newItem.quantity);
+                        if (!Number.isFinite(quantity) || quantity <= 0) {
+                            alert('数量必须大于 0');
+                            return;
+                        }
+                        const payload = { ...this.newItem, quantity };
+                        if (payload.unit_price === '' || payload.unit_price === undefined) {
+                            payload.unit_price = null;
+                        }
+                        await axios.post('/api/items', payload);
                         this.closeAddModal();
                         // 重置表单
                         this.newItem = {
@@ -769,7 +816,7 @@
                         await this.loadItems();
                         await this.loadStats();
                     } catch(e) {
-                        alert('添加失败');
+                        alert('添加失败: ' + (e.response?.data?.detail || e.message));
                     }
                 }
             }
