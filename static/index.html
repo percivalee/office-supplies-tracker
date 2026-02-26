@@ -182,8 +182,8 @@
                 <form @submit.prevent="manualAdd" class="p-6 space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div class="col-span-1">
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">流水号 (必填)</label>
-                            <input v-model="newItem.serial_number" required placeholder="如: REQ-2026001" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none font-mono">
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">流水号（可空，自动生成）</label>
+                            <input v-model="newItem.serial_number" placeholder="如: REQ-2026001（留空自动生成）" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none font-mono">
                         </div>
                         <div class="col-span-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">申请日期</label>
@@ -191,11 +191,11 @@
                         </div>
                         <div class="col-span-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">申领部门</label>
-                            <input v-model="newItem.department" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
+                            <input v-model="newItem.department" list="department-options" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
                         </div>
                         <div class="col-span-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">经办人</label>
-                            <input v-model="newItem.handler" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
+                            <input v-model="newItem.handler" list="handler-options" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
                         </div>
                         <div class="col-span-2">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">物品/服务名称</label>
@@ -431,6 +431,12 @@
                 </div>
             </div>
         </div>
+        <datalist id="department-options">
+            <option v-for="dep in departments" :key="`dep-${dep}`" :value="dep"></option>
+        </datalist>
+        <datalist id="handler-options">
+            <option v-for="name in handlers" :key="`handler-${name}`" :value="name"></option>
+        </datalist>
 
     </div>
     

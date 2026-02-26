@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 import aiosqlite
 
@@ -31,10 +32,28 @@ INSERT_ITEM_SQL = """
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
+FULLWIDTH_TRANSLATION = str.maketrans({
+    "０": "0",
+    "１": "1",
+    "２": "2",
+    "３": "3",
+    "４": "4",
+    "５": "5",
+    "６": "6",
+    "７": "7",
+    "８": "8",
+    "９": "9",
+    "：": ":",
+    "／": "/",
+    "．": ".",
+    "－": "-",
+    "　": " ",
+})
 
 
 def _normalize_required_text(field: str, value) -> str:
-    text = str(value or "").strip()
+    text = str(value or "").translate(FULLWIDTH_TRANSLATION).strip()
+    text = re.sub(r"\s+", " ", text)
     if not text:
         raise ValueError(f"{field} 不能为空")
     limit = TEXT_FIELD_MAX_LENGTH.get(field)
@@ -46,7 +65,8 @@ def _normalize_required_text(field: str, value) -> str:
 def _normalize_optional_text(field: str, value) -> Optional[str]:
     if value is None:
         return None
-    text = str(value).strip()
+    text = str(value).translate(FULLWIDTH_TRANSLATION).strip()
+    text = re.sub(r"\s+", " ", text)
     if not text:
         return None
     limit = TEXT_FIELD_MAX_LENGTH.get(field)
@@ -111,15 +131,35 @@ def _normalize_request_date(value) -> str:
     return parsed.strftime("%Y-%m-%d")
 
 
+def _normalize_serial_number(value) -> str:
+    return _normalize_required_text("serial_number", value).upper().replace(" ", "")
+
+
+def _normalize_purchase_link(value) -> Optional[str]:
+    text = _normalize_optional_text("purchase_link", value)
+    if not text:
+        return None
+    compact = text.replace(" ", "")
+    compact = re.sub(r"[，。；;、）)\]>》]+$", "", compact)
+    if compact.lower().startswith("www."):
+        compact = f"https://{compact}"
+    parsed = urlparse(compact)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("purchase_link 必须是有效的 http(s) URL")
+    if len(compact) > TEXT_FIELD_MAX_LENGTH["purchase_link"]:
+        raise ValueError(f"purchase_link 长度不能超过 {TEXT_FIELD_MAX_LENGTH['purchase_link']}")
+    return compact
+
+
 def normalize_item_payload(item: dict) -> dict:
     """标准化并校验新增记录。"""
     payload = dict(item)
-    payload["serial_number"] = _normalize_required_text("serial_number", payload.get("serial_number"))
+    payload["serial_number"] = _normalize_serial_number(payload.get("serial_number"))
     payload["department"] = _normalize_required_text("department", payload.get("department"))
     payload["handler"] = _normalize_required_text("handler", payload.get("handler"))
     payload["request_date"] = _normalize_request_date(payload.get("request_date"))
     payload["item_name"] = _normalize_required_text("item_name", payload.get("item_name"))
-    payload["purchase_link"] = _normalize_optional_text("purchase_link", payload.get("purchase_link"))
+    payload["purchase_link"] = _normalize_purchase_link(payload.get("purchase_link"))
     payload["quantity"] = _normalize_quantity(payload.get("quantity"))
     payload["unit_price"] = _normalize_unit_price(payload.get("unit_price"))
     return payload
@@ -129,7 +169,7 @@ def normalize_update_payload(updates: dict) -> dict:
     """标准化并校验更新记录。"""
     payload = dict(updates)
     if "serial_number" in payload:
-        payload["serial_number"] = _normalize_required_text("serial_number", payload.get("serial_number"))
+        payload["serial_number"] = _normalize_serial_number(payload.get("serial_number"))
     if "department" in payload:
         payload["department"] = _normalize_required_text("department", payload.get("department"))
     if "handler" in payload:
@@ -139,7 +179,7 @@ def normalize_update_payload(updates: dict) -> dict:
     if "item_name" in payload:
         payload["item_name"] = _normalize_required_text("item_name", payload.get("item_name"))
     if "purchase_link" in payload:
-        payload["purchase_link"] = _normalize_optional_text("purchase_link", payload.get("purchase_link"))
+        payload["purchase_link"] = _normalize_purchase_link(payload.get("purchase_link"))
     if "quantity" in payload:
         payload["quantity"] = _normalize_quantity(payload.get("quantity"))
     if "unit_price" in payload:

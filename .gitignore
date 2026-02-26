@@ -12,6 +12,13 @@ venv/
 .restore_tmp_*
 .restore_db_snapshot_*.bak
 .restore_uploads_snapshot_*
+samples/regression/last_report.json
+samples/regression/pdf_text/*
+!samples/regression/pdf_text/.gitkeep
+samples/regression/pdf_scan/*
+!samples/regression/pdf_scan/.gitkeep
+samples/regression/image/*
+!samples/regression/image/.gitkeep
 uploads/*
 !uploads/.gitkeep
 

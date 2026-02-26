@@ -24,6 +24,8 @@ def _get_ocr():
 
 class DocumentParser:
     """办公用品领用单解析器"""
+    MAX_PDF_PAGES = 5
+    MIN_TEXT_LENGTH_FOR_PDF_PARSE = 40
 
     # 正则表达式模式
     PATTERNS = {
@@ -99,20 +101,59 @@ class DocumentParser:
     def _parse_pdf(self) -> dict:
         """解析 PDF 文件"""
         with pdfplumber.open(self.file_path) as pdf:
-            page = pdf.pages[0] if pdf.pages else None
-            if not page:
+            if not pdf.pages:
                 return self._get_empty_result()
 
-            self.text = page.extract_text() or ""
-            self.tables = page.extract_tables() or []
+            pages = pdf.pages[:self.MAX_PDF_PAGES]
+            text_parts = []
+            table_parts = []
 
-            return self._parse_from_tables_and_text()
+            for page in pages:
+                page_text = (page.extract_text() or "").strip()
+                if page_text:
+                    text_parts.append(page_text)
+
+                page_tables = page.extract_tables() or []
+                if not page_tables:
+                    # 文本策略对部分表格线不完整的 PDF 更稳。
+                    try:
+                        page_tables = page.extract_tables(
+                            table_settings={
+                                "vertical_strategy": "text",
+                                "horizontal_strategy": "text",
+                                "snap_tolerance": 3,
+                                "intersection_tolerance": 8,
+                            }
+                        ) or []
+                    except Exception:
+                        page_tables = []
+                if page_tables:
+                    table_parts.extend(page_tables)
+
+            self.text = "\n".join(text_parts)
+            self.tables = table_parts
+
+            parsed = self._parse_from_tables_and_text()
+            parsed["items"] = self._deduplicate_items(parsed.get("items", []))
+
+            # 扫描件 PDF 常见无文本/无表格，触发 OCR 兜底。
+            if self._should_fallback_pdf_ocr(parsed):
+                ocr_parsed = self._parse_pdf_via_ocr()
+                if ocr_parsed.get("items"):
+                    return ocr_parsed
+                # OCR 若只识别到表头字段，也尽量补齐返回值。
+                for key in ("serial_number", "department", "handler", "request_date"):
+                    if not parsed.get(key) and ocr_parsed.get(key):
+                        parsed[key] = ocr_parsed[key]
+
+            return parsed
 
     def _parse_image(self) -> dict:
         """解析图片文件（OCR）"""
         ocr = _get_ocr()
-        result = ocr.ocr(self.file_path, cls=True)
-        ocr_results = result[0] if result and result[0] else []
+        raw_result = ocr.ocr(self.file_path, cls=True)
+        ocr_pages = self._extract_ocr_pages(raw_result)
+        ocr_results = ocr_pages[0] if ocr_pages else []
 
         # 按行分组OCR结果（根据Y坐标）
         lines = self._group_ocr_by_line_with_coords(ocr_results)
@@ -124,7 +165,101 @@ class DocumentParser:
         lines_text = [" ".join([item[1][0] for item in line]) for line in filtered_lines]
         self.text = "\n".join(lines_text)
 
-        return self._parse_from_ocr_with_coords(filtered_lines)
+        parsed = self._parse_from_ocr_with_coords(filtered_lines)
+        parsed["items"] = self._deduplicate_items(parsed.get("items", []))
+        return parsed
+
+    def _should_fallback_pdf_ocr(self, parsed: dict) -> bool:
+        items = parsed.get("items") or []
+        if items:
+            return False
+        compact_text = re.sub(r"\s+", "", self.text or "")
+        has_header = any(parsed.get(key) for key in ("serial_number", "department", "handler", "request_date"))
+        return len(compact_text) < self.MIN_TEXT_LENGTH_FOR_PDF_PARSE or not has_header
+
+    def _is_ocr_item(self, value) -> bool:
+        return (
+            isinstance(value, (list, tuple))
+            and len(value) >= 2
+            and isinstance(value[0], (list, tuple))
+            and isinstance(value[1], (list, tuple))
+            and len(value[1]) >= 1
+        )
+
+    def _extract_ocr_pages(self, raw_result) -> list[list]:
+        """兼容 PaddleOCR 图片/PDF 的不同返回结构。"""
+        if not isinstance(raw_result, list) or not raw_result:
+            return []
+
+        pages: list[list] = []
+
+        # 情况1：图片常见结构 [[item, item, ...]]
+        if len(raw_result) == 1 and isinstance(raw_result[0], list):
+            first = raw_result[0]
+            if first and self._is_ocr_item(first[0]):
+                return [first]
+
+        # 情况2：PDF 多页结构 [[page1_items], [page2_items], ...]
+        for entry in raw_result:
+            if not isinstance(entry, list) or not entry:
+                continue
+            if self._is_ocr_item(entry[0]):
+                pages.append(entry)
+                continue
+            # 情况3：嵌套结构 [[[page_items]], ...]
+            if isinstance(entry[0], list) and entry[0] and self._is_ocr_item(entry[0][0]):
+                pages.extend([sub for sub in entry if isinstance(sub, list) and sub and self._is_ocr_item(sub[0])])
+
+        # 情况4：少数版本直接返回 [item, item, ...]
+        if not pages and self._is_ocr_item(raw_result[0]):
+            pages.append(raw_result)
+
+        return pages
+
+    def _parse_pdf_via_ocr(self) -> dict:
+        """PDF OCR 兜底：用于扫描件或文本提取失败场景。"""
+        try:
+            ocr = _get_ocr()
+            raw_result = ocr.ocr(self.file_path, cls=True)
+        except Exception as exc:
+            logger.warning("PDF OCR fallback failed: %s", exc)
+            return self._get_empty_result()
+
+        ocr_pages = self._extract_ocr_pages(raw_result)[:self.MAX_PDF_PAGES]
+        if not ocr_pages:
+            return self._get_empty_result()
+
+        text_parts = []
+        all_items = []
+        for page_results in ocr_pages:
+            lines = self._group_ocr_by_line_with_coords(page_results)
+            filtered_lines = self._filter_ui_elements(lines)
+            if not filtered_lines:
+                continue
+            lines_text = [" ".join([item[1][0] for item in line]) for line in filtered_lines]
+            text_parts.append("\n".join(lines_text))
+            all_items.extend(self._extract_items_from_ocr_lines(filtered_lines))
+
+        if not text_parts and not all_items:
+            return self._get_empty_result()
+
+        original_text = self.text
+        self.text = "\n".join(text_parts)
+        result = self._get_empty_result()
+        result.update(self._extract_header_info())
+        result["items"] = self._deduplicate_items(all_items)
+
+        if not result["items"]:
+            result["items"] = self._deduplicate_items(
+                self._extract_items_from_text_lines(self.text.split('\n'))
+            )
+
+        # OCR 没拿到表头时，回退到原 PDF 文本再尝试一次。
+        if original_text and not any(result.get(k) for k in ("serial_number", "department", "handler", "request_date")):
+            self.text = original_text
+            result.update(self._extract_header_info())
+
+        return result
 
     def _group_ocr_by_line_with_coords(self, ocr_results: list, line_threshold: float = 20.0) -> list:
         """将OCR结果按行分组（保留坐标）"""
@@ -187,23 +322,20 @@ class DocumentParser:
         header_info = self._extract_header_info()
         result.update(header_info)
 
-        # 查找表格区域（包含"序号"、"物品名称"等关键词的行）
+        result["items"] = self._extract_items_from_ocr_lines(lines)
+
+        return result
+
+    def _extract_items_from_ocr_lines(self, lines: list) -> list[dict]:
         table_start = -1
         for idx, line in enumerate(lines):
             line_text = " ".join([item[1][0] for item in line])
             if "序号" in line_text and ("物品" in line_text or "名称" in line_text):
                 table_start = idx
                 break
-
         if table_start == -1:
-            # 没找到表头，尝试直接解析
-            return self._parse_from_text_only()
-
-        # 传入包含表头的切片，避免二次查找表头失败后退化到简单解析
-        items = self._extract_items_from_ocr_merged(lines[table_start:])
-        result["items"] = items
-
-        return result
+            return self._extract_items_simple(lines)
+        return self._extract_items_from_ocr_merged(lines[table_start:])
 
     def _extract_items_from_ocr_merged(self, lines: list) -> list[dict]:
         """从OCR行中提取明细（基于表格结构）"""
@@ -310,9 +442,9 @@ class DocumentParser:
 
         # 提取链接
         purchase_link = None
-        url_match = re.search(r'https?://[^\s\u4e00-\u9fff]+', remark_text)
+        url_match = re.search(r'(?:https?://|www\.)[^\s\u4e00-\u9fff]+', remark_text, re.IGNORECASE)
         if url_match:
-            purchase_link = url_match.group(0)
+            purchase_link = self._normalize_purchase_link(url_match.group(0))
 
         return {
             "item_name": item_name,
@@ -389,9 +521,9 @@ class DocumentParser:
 
         # 提取链接
         purchase_link = None
-        url_match = re.search(r'https?://[^\s\u4e00-\u9fff]+', line_text)
+        url_match = re.search(r'(?:https?://|www\.)[^\s\u4e00-\u9fff]+', line_text, re.IGNORECASE)
         if url_match:
-            purchase_link = url_match.group(0)
+            purchase_link = self._normalize_purchase_link(url_match.group(0))
 
         return {
             "item_name": item_name,
@@ -438,9 +570,12 @@ class DocumentParser:
         result.update(header_info)
 
         # 从表格中提取明细
+        items = []
         if self.tables:
             items = self._extract_items_from_tables()
-            result["items"] = items
+        if not items and self.text:
+            items = self._extract_items_from_text_lines(self.text.split('\n'))
+        result["items"] = self._deduplicate_items(items)
 
         return result
 
@@ -771,7 +906,22 @@ class DocumentParser:
             return 1
 
         # 去除空白
-        quantity_str = quantity_str.strip()
+        quantity_str = (
+            str(quantity_str)
+            .replace("，", ".")
+            .replace("。", ".")
+            .replace("０", "0")
+            .replace("１", "1")
+            .replace("２", "2")
+            .replace("３", "3")
+            .replace("４", "4")
+            .replace("５", "5")
+            .replace("６", "6")
+            .replace("７", "7")
+            .replace("８", "8")
+            .replace("９", "9")
+            .strip()
+        )
 
         # 直接提取数字
         match = re.search(r'(\d+(?:\.\d+)?)', quantity_str)
@@ -785,13 +935,34 @@ class DocumentParser:
 
         return 1
 
+    def _deduplicate_items(self, items: list[dict]) -> list[dict]:
+        """去重并做轻量规范化，避免多页/多策略重复提取。"""
+        unique_items = []
+        seen = set()
+        for raw in items:
+            item_name = self._clean_item_name(str((raw or {}).get("item_name") or ""))
+            if not item_name:
+                continue
+            quantity = self._parse_quantity(str((raw or {}).get("quantity") or "1"))
+            purchase_link = self._normalize_purchase_link((raw or {}).get("purchase_link") or "")
+            key = (item_name, quantity, purchase_link or "")
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_items.append({
+                "item_name": item_name,
+                "quantity": quantity,
+                "purchase_link": purchase_link,
+            })
+        return unique_items
+
     def _extract_link_from_row(self, row: list) -> Optional[str]:
         """从行中提取链接（处理cemall等需要拼接ID的情况）"""
         for cell in row:
             if cell:
                 cell_str = str(cell)
                 # 查找URL和可能的商品ID
-                url_match = re.search(r'(https?://[^\s\u4e00-\u9fff]+)', cell_str)
+                url_match = re.search(r'((?:https?://|www\.)[^\s\u4e00-\u9fff]+)', cell_str, re.IGNORECASE)
                 if url_match:
                     url = url_match.group(0).strip()
 
@@ -804,11 +975,30 @@ class DocumentParser:
                             # 拼接ID到商品号后面
                             url = re.sub(r'/goods/(\d+)', lambda m: f'/goods/{m.group(1)}{product_id}', url)
 
-                    # 清理URL尾部
-                    url = re.sub(r'[。，,；；\s]+$', '', url)
-                    return url
+                    normalized = self._normalize_purchase_link(url)
+                    if normalized:
+                        return normalized
 
         return None
+
+    def _normalize_purchase_link(self, value: str) -> Optional[str]:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        text = (
+            text.replace("：", ":")
+            .replace("／", "/")
+            .replace("．", ".")
+            .replace("　", " ")
+            .strip()
+        )
+        text = re.sub(r"\s+", "", text)
+        text = re.sub(r'[，。；;、）)\]>》]+$', '', text)
+        if re.match(r"^www\.", text, re.IGNORECASE):
+            text = f"https://{text}"
+        if not re.match(r"^https?://", text, re.IGNORECASE):
+            return None
+        return text
 
     def _clean_item_name(self, name: str) -> Optional[str]:
         """清理物品名称"""
@@ -890,12 +1080,12 @@ class DocumentParser:
     def _parse_text_line(self, line: str) -> Optional[dict]:
         """解析单行文本"""
         # 提取链接
-        url_match = re.search(r'https?://[^\s]+', line)
-        purchase_link = url_match.group(0) if url_match else None
+        url_match = re.search(r'(?:https?://|www\.)[^\s]+', line, re.IGNORECASE)
+        purchase_link = self._normalize_purchase_link(url_match.group(0)) if url_match else None
 
         # 移除URL后的文本
-        if purchase_link:
-            line = line.replace(purchase_link, "")
+        if url_match:
+            line = line.replace(url_match.group(0), "")
 
         # 提取数量
         quantity = self._parse_quantity(line)

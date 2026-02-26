@@ -7,6 +7,7 @@
                     stats: { total: 0, status_count: {}, payment_count: {}, invoice_count: { issued: 0, not_issued: 0 }},
                     statuses: ['待采购', '已采购', '已到货', '已发放'],
                     departments: [],
+                    handlers: [],
                     paymentStatuses: ['未付款', '已付款', '已报销'],
                     filterKeyword: '',
                     filterStatus: '',

@@ -325,19 +325,52 @@
                     const normalized = this.normalizeDateText(target[field]);
                     target[field] = normalized;
                 },
+                normalizeText(value) {
+                    return (value || '')
+                        .toString()
+                        .replace(/　/g, ' ')
+                        .trim()
+                        .replace(/\s+/g, ' ');
+                },
+                normalizeSerial(value) {
+                    return this.normalizeText(value).toUpperCase().replace(/\s+/g, '');
+                },
+                normalizeUrlText(value) {
+                    let text = (value || '').toString().trim();
+                    if (!text) return '';
+                    text = text
+                        .replace(/：/g, ':')
+                        .replace(/／/g, '/')
+                        .replace(/．/g, '.')
+                        .replace(/　/g, '')
+                        .replace(/\s+/g, '')
+                        .replace(/[，。；;、）)\]>》]+$/g, '');
+                    if (/^www\./i.test(text)) {
+                        text = `https://${text}`;
+                    }
+                    try {
+                        const url = new URL(text);
+                        if (!/^https?:$/i.test(url.protocol)) return '';
+                        return url.toString();
+                    } catch (_) {
+                        return '';
+                    }
+                },
                 normalizePreviewData(data) {
                     const items = Array.isArray(data?.items) ? data.items : [];
                     return {
-                        serial_number: (data?.serial_number || '').toString().trim(),
-                        department: (data?.department || '').toString().trim(),
-                        handler: (data?.handler || '').toString().trim(),
+                        serial_number: this.normalizeSerial(data?.serial_number),
+                        department: this.normalizeText(data?.department),
+                        handler: this.normalizeText(data?.handler),
                         request_date: this.normalizeDateText(data?.request_date),
                         items: items.map((item) => {
                             const qty = Number(item?.quantity);
+                            const rawLink = (item?.purchase_link || '').toString();
+                            const normalizedLink = this.normalizeUrlText(rawLink);
                             return {
-                                item_name: (item?.item_name || '').toString().trim(),
+                                item_name: this.normalizeText(item?.item_name),
                                 quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
-                                purchase_link: (item?.purchase_link || '').toString().trim(),
+                                purchase_link: normalizedLink || this.normalizeText(rawLink),
                             };
                         })
                     };
@@ -369,17 +402,31 @@
                     const items = normalized.items
                         .filter((item) => item.item_name)
                         .map((item) => ({
-                            item_name: item.item_name,
+                            item_name: this.normalizeText(item.item_name),
                             quantity: Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0 ? Number(item.quantity) : 1,
-                            purchase_link: item.purchase_link || null,
+                            purchase_link: this.normalizeUrlText(item.purchase_link) || null,
                         }));
                     return {
-                        serial_number: normalized.serial_number,
-                        department: normalized.department,
-                        handler: normalized.handler,
+                        serial_number: this.normalizeSerial(normalized.serial_number),
+                        department: this.normalizeText(normalized.department),
+                        handler: this.normalizeText(normalized.handler),
                         request_date: this.normalizeDateText(normalized.request_date),
                         items,
                     };
+                },
+                validateImportPayload(payload) {
+                    const required = [
+                        ['serial_number', '流水号'],
+                        ['department', '申领部门'],
+                        ['handler', '经办人'],
+                        ['request_date', '申领日期'],
+                    ];
+                    const missing = required
+                        .filter(([key]) => !this.normalizeText(payload[key]))
+                        .map(([, label]) => label);
+                    if (missing.length) {
+                        throw new Error(`请先补全字段：${missing.join('、')}`);
+                    }
                 },
                 closeDuplicateModal() {
                     this.showDuplicateModal = false;
@@ -393,6 +440,7 @@
                     try {
                         const res = await axios.get('/api/autocomplete');
                         this.departments = res.data.departments || [];
+                        this.handlers = res.data.handlers || [];
                         if (Array.isArray(res.data.statuses) && res.data.statuses.length) {
                             this.statuses = res.data.statuses;
                         }
@@ -472,6 +520,35 @@
                 },
                 normalizeItemUpdatePayload(data) {
                     const payload = { ...data };
+                    const fieldLabels = {
+                        serial_number: '流水号',
+                        department: '申领部门',
+                        handler: '经办人',
+                        item_name: '物品名称',
+                        status: '状态',
+                        payment_status: '付款状态',
+                    };
+                    for (const field of ['serial_number', 'department', 'handler', 'item_name', 'status', 'payment_status']) {
+                        if (Object.prototype.hasOwnProperty.call(payload, field)) {
+                            const value = this.normalizeText(payload[field]);
+                            if (!value) {
+                                throw new Error(`${fieldLabels[field] || field} 不能为空`);
+                            }
+                            payload[field] = field === 'serial_number' ? value.toUpperCase().replace(/\s+/g, '') : value;
+                        }
+                    }
+                    if (Object.prototype.hasOwnProperty.call(payload, 'purchase_link')) {
+                        const raw = (payload.purchase_link || '').toString().trim();
+                        if (!raw) {
+                            payload.purchase_link = null;
+                        } else {
+                            const normalizedUrl = this.normalizeUrlText(raw);
+                            if (!normalizedUrl) {
+                                throw new Error('采购链接必须是有效的 http(s) URL');
+                            }
+                            payload.purchase_link = normalizedUrl;
+                        }
+                    }
                     if (Object.prototype.hasOwnProperty.call(payload, 'quantity')) {
                         const qty = Number(payload.quantity);
                         if (!Number.isFinite(qty) || qty <= 0) {
@@ -637,6 +714,12 @@
                         return;
                     }
                     const payload = this.sanitizeImportPayload(source);
+                    try {
+                        this.validateImportPayload(payload);
+                    } catch (e) {
+                        alert(e.message);
+                        return;
+                    }
                     if (!payload.items.length) {
                         alert('请至少保留一条有效物品明细');
                         return;
@@ -687,16 +770,40 @@
                             return;
                         }
 
+                        const requestDate = this.normalizeDateText(this.newItem.request_date);
+                        const department = this.normalizeText(this.newItem.department);
+                        const handler = this.normalizeText(this.newItem.handler);
+                        const itemName = this.normalizeText(this.newItem.item_name);
+                        if (!requestDate || !department || !handler || !itemName) {
+                            alert('请补全 申领日期 / 申领部门 / 经办人 / 物品名称');
+                            return;
+                        }
+
+                        const rawLink = (this.newItem.purchase_link || '').toString().trim();
+                        const normalizedLink = this.normalizeUrlText(rawLink);
+                        if (rawLink && !normalizedLink) {
+                            alert('采购链接必须是有效的 http(s) URL');
+                            return;
+                        }
+
                         // 如果用户没填流水号，自动生成一个
-                        let sn = (this.newItem.serial_number || '').trim();
+                        let sn = this.normalizeSerial(this.newItem.serial_number);
                         if (!sn) {
                             const now = new Date();
                             const ts = now.toISOString().replace(/[-:T]/g, '').slice(2, 12);
                             sn = `REQ-${ts}`;
                         }
 
-                        this.normalizeDateField(this.newItem, 'request_date');
-                        const payload = { ...this.newItem, serial_number: sn, quantity };
+                        const payload = {
+                            ...this.newItem,
+                            serial_number: sn,
+                            request_date: requestDate,
+                            department,
+                            handler,
+                            item_name: itemName,
+                            quantity,
+                            purchase_link: normalizedLink || null,
+                        };
                         
                         if (payload.unit_price === '' || payload.unit_price === undefined) {
                             payload.unit_price = null;
@@ -707,9 +814,9 @@
                         // 商务友好重置：保留部门、经办人、日期，只清空物品、数量、单价和链接，方便连续录入
                         this.newItem = {
                             serial_number: '', 
-                            department: this.newItem.department,
-                            handler: this.newItem.handler,
-                            request_date: this.newItem.request_date,
+                            department,
+                            handler,
+                            request_date: requestDate,
                             item_name: '',
                             quantity: 1,
                             unit_price: null,

@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from fastapi import HTTPException
@@ -7,6 +8,58 @@ from database import (
     bulk_update_quantities,
     get_existing_items_by_keys,
 )
+
+TEXT_LENGTH_LIMITS = {
+    "serial_number": 120,
+    "department": 120,
+    "handler": 80,
+    "request_date": 32,
+    "item_name": 200,
+    "purchase_link": 2000,
+}
+
+FULLWIDTH_TRANSLATION = str.maketrans({
+    "０": "0",
+    "１": "1",
+    "２": "2",
+    "３": "3",
+    "４": "4",
+    "５": "5",
+    "６": "6",
+    "７": "7",
+    "８": "8",
+    "９": "9",
+    "：": ":",
+    "／": "/",
+    "．": ".",
+    "－": "-",
+    "　": " ",
+})
+
+
+def normalize_text(value, max_length: Optional[int] = None) -> str:
+    text = str(value or "").translate(FULLWIDTH_TRANSLATION).strip()
+    text = re.sub(r"\s+", " ", text)
+    if max_length is not None and len(text) > max_length:
+        text = text[:max_length]
+    return text
+
+
+def normalize_serial_number(value) -> str:
+    return normalize_text(value, TEXT_LENGTH_LIMITS["serial_number"]).upper().replace(" ", "")
+
+
+def normalize_url(value) -> Optional[str]:
+    text = normalize_text(value, TEXT_LENGTH_LIMITS["purchase_link"])
+    if not text:
+        return None
+    text = text.replace(" ", "")
+    text = re.sub(r"[，。；;、）)\]>》]+$", "", text)
+    if text.lower().startswith("www."):
+        text = f"https://{text}"
+    if not re.match(r"^https?://", text, re.IGNORECASE):
+        return None
+    return text
 
 
 def item_key(item: dict) -> tuple[str, str, str]:
@@ -20,6 +73,21 @@ def item_key(item: dict) -> tuple[str, str, str]:
 
 def safe_quantity(value) -> float:
     """数量兜底，避免异常值导致合并失败。"""
+    if isinstance(value, (int, float)):
+        quantity = float(value)
+        return quantity if quantity > 0 else 1.0
+
+    raw = normalize_text(value)
+    if raw:
+        raw = raw.replace("，", ".").replace("。", ".")
+        match = re.search(r"(\d+(?:\.\d+)?)", raw)
+        if match:
+            try:
+                quantity = float(match.group(1))
+                return quantity if quantity > 0 else 1.0
+            except (TypeError, ValueError):
+                pass
+
     try:
         quantity = float(value)
         return quantity if quantity > 0 else 1.0
@@ -29,20 +97,19 @@ def safe_quantity(value) -> float:
 
 def normalize_import_payload(payload: dict) -> dict:
     """标准化导入数据，合并同键明细并清理空值。"""
-    serial_number = str(payload.get("serial_number") or "").strip()
-    department = str(payload.get("department") or "").strip()
-    handler = str(payload.get("handler") or "").strip()
-    request_date = str(payload.get("request_date") or "").strip()
+    serial_number = normalize_serial_number(payload.get("serial_number"))
+    department = normalize_text(payload.get("department"), TEXT_LENGTH_LIMITS["department"])
+    handler = normalize_text(payload.get("handler"), TEXT_LENGTH_LIMITS["handler"])
+    request_date = normalize_text(payload.get("request_date"), TEXT_LENGTH_LIMITS["request_date"])
 
     merged_items: dict[tuple[str, str, str], dict] = {}
     for raw in payload.get("items", []):
-        item_name = str((raw or {}).get("item_name") or "").strip()
+        item_name = normalize_text((raw or {}).get("item_name"), TEXT_LENGTH_LIMITS["item_name"])
         if not item_name:
             continue
         key = (serial_number, item_name, handler)
         quantity = safe_quantity((raw or {}).get("quantity"))
-        purchase_link_raw = str((raw or {}).get("purchase_link") or "").strip()
-        purchase_link = purchase_link_raw or None
+        purchase_link = normalize_url((raw or {}).get("purchase_link"))
 
         if key in merged_items:
             merged_items[key]["quantity"] += quantity
@@ -107,8 +174,21 @@ def collect_duplicates(items: list[dict], existing_by_key: dict) -> list[dict]:
     return duplicates
 
 
+def validate_import_header_fields(normalized_payload: dict) -> None:
+    required_fields = [
+        ("serial_number", "流水号"),
+        ("department", "申领部门"),
+        ("handler", "经办人"),
+        ("request_date", "申领日期"),
+    ]
+    missing = [label for field, label in required_fields if not str(normalized_payload.get(field) or "").strip()]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"请先补全字段：{'、'.join(missing)}")
+
+
 async def confirm_import_payload(normalized_payload: dict, duplicate_action: Optional[str] = None) -> dict:
     """根据导入数据执行确认导入流程。"""
+    validate_import_header_fields(normalized_payload)
     items_to_create = normalized_payload.get("items", [])
     if not items_to_create:
         raise HTTPException(status_code=400, detail="未识别到可导入的物品明细")
