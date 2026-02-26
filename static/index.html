@@ -223,6 +223,7 @@
 
     <div id="app" class="app-shell mx-auto w-full max-w-[1800px] h-screen px-4 py-4 flex flex-col" style="display:none;">
         <input type="file" ref="fileInput" @change="handleFileSelect" accept=".pdf,.png,.jpg,.jpeg,.jfif" class="hidden">
+        <input type="file" ref="restoreInput" @change="handleRestoreSelect" accept=".zip" class="hidden">
 
         <!-- 头部 -->
         <header class="mb-3 shrink-0 card-surface rounded-2xl px-5 py-4 animate-rise">
@@ -247,6 +248,14 @@
                         </svg>
                         上传领用单
                     </button>
+                    <button @click="backupData" class="btn-base btn-soft">
+                        备份数据
+                    </button>
+                    <button @click="$refs.restoreInput && $refs.restoreInput.click()"
+                            :disabled="restoring"
+                            class="btn-base btn-soft">
+                        {{ restoring ? '恢复中...' : '恢复备份' }}
+                    </button>
                     <button @click="openAddModal" class="btn-base btn-primary">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -254,7 +263,7 @@
                         添加记录
                     </button>
                     <span v-if="uploading" class="status-chip status-info">正在解析...</span>
-                    <span v-if="parseResult" class="status-chip status-success">解析成功：{{ parseResult.items?.length || 0 }} 条</span>
+                    <span v-if="parseResult" class="status-chip status-success">导入完成：{{ parseResult.items?.length || 0 }} 条</span>
                     <span v-if="error" class="status-chip status-error max-w-56 truncate" :title="error">{{ error }}</span>
                 </div>
             </div>
@@ -323,6 +332,12 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <h2 class="text-lg font-semibold text-slate-700">采购记录</h2>
                     <div class="ml-auto toolbar-group flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                        <input
+                            v-model="filterKeyword"
+                            @keyup.enter="handleFilter"
+                            class="toolbar-control min-w-[15rem]"
+                            placeholder="搜索：流水号 / 物品名 / 经办人 / 申领部门"
+                        >
                         <select v-model="filterStatus" @change="handleFilter" class="toolbar-control">
                             <option value="">全部状态</option>
                             <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
@@ -332,6 +347,7 @@
                             <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
                         </select>
                         <input type="month" v-model="filterMonth" @change="handleFilter" class="toolbar-control">
+                        <button @click="handleFilter" class="btn-base btn-soft">搜索</button>
                         <button @click="clearFilters" class="btn-base btn-soft">重置筛选</button>
                         <button @click="exportExcel" class="btn-base btn-success">导出为 Excel</button>
                     </div>
@@ -355,6 +371,7 @@
                                     <input type="checkbox" v-model="selectAll" @change="toggleSelectAll" class="w-4 h-4">
                                 </th>
                                 <th class="text-left p-3 font-medium text-gray-600 border-b w-40">申领部门</th>
+                                <th class="text-left p-3 font-medium text-gray-600 border-b w-28">经办人</th>
                                 <th class="text-left p-3 font-medium text-gray-600 border-b">物品名称</th>
                                 <th class="text-left p-3 font-medium text-gray-600 border-b w-20">数量</th>
                                 <th class="text-left p-3 font-medium text-gray-600 border-b w-24">单价</th>
@@ -374,6 +391,11 @@
                                     <input type="text" v-model="item.department" @blur="updateItem(item.id, { department: item.department })"
                                            class="table-input"
                                            placeholder="申领部门">
+                                </td>
+                                <td class="p-3">
+                                    <input type="text" v-model="item.handler" @blur="updateItem(item.id, { handler: item.handler })"
+                                           class="table-input"
+                                           placeholder="经办人">
                                 </td>
                                 <td class="p-3">
                                     <input type="text" v-model="item.item_name" @blur="updateItem(item.id, { item_name: item.item_name })"
@@ -421,7 +443,7 @@
                                 </td>
                             </tr>
                             <tr v-if="items.length === 0">
-                                <td colspan="10" class="p-12 text-center text-gray-400">暂无记录</td>
+                                <td colspan="11" class="p-12 text-center text-gray-400">暂无记录</td>
                             </tr>
                         </tbody>
                     </table>
@@ -508,6 +530,85 @@
             </div>
         </div>
 
+        <!-- 导入预览与校正模态框 -->
+        <div v-if="showImportPreviewModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-3" @click.self="closeImportPreview">
+            <div class="modal-panel rounded-2xl w-full max-w-5xl mx-1 max-h-[92vh] flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-700 to-slate-800">
+                    <h3 class="text-lg font-semibold text-white">导入预览（可修改后再入库）</h3>
+                    <button @click="closeImportPreview" class="text-white/80 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 space-y-4 overflow-y-auto">
+                    <p class="text-sm text-gray-600">请先核对解析内容，可直接修改后点击“确认导入”。</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">流水号</label>
+                            <input v-model="importPreview.serial_number" class="toolbar-control w-full" placeholder="流水号">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">申领部门</label>
+                            <input v-model="importPreview.department" class="toolbar-control w-full" placeholder="部门">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">经办人</label>
+                            <input v-model="importPreview.handler" class="toolbar-control w-full" placeholder="经办人">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">申领日期</label>
+                            <input v-model="importPreview.request_date" class="toolbar-control w-full" placeholder="YYYY-MM-DD">
+                        </div>
+                    </div>
+
+                    <div class="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                            <span class="font-medium text-slate-700">物品明细（{{ importPreview.items.length }} 条）</span>
+                            <button @click="addPreviewItem" class="btn-base btn-soft btn-compact">新增一行</button>
+                        </div>
+                        <div class="max-h-80 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="sticky top-0 bg-slate-50 z-10">
+                                    <tr>
+                                        <th class="text-left px-3 py-2 border-b border-slate-200">物品名称</th>
+                                        <th class="text-left px-3 py-2 border-b border-slate-200 w-28">数量</th>
+                                        <th class="text-left px-3 py-2 border-b border-slate-200">购买链接</th>
+                                        <th class="text-left px-3 py-2 border-b border-slate-200 w-20">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, idx) in importPreview.items" :key="idx" class="border-b border-slate-100">
+                                        <td class="px-3 py-2">
+                                            <input v-model="row.item_name" class="table-input" placeholder="物品名称">
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input v-model.number="row.quantity" type="number" min="0.1" step="0.1" class="table-input text-center">
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <input v-model="row.purchase_link" class="table-input" placeholder="https://...">
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <button @click="removePreviewItem(idx)" class="text-red-500 hover:text-red-700">删除</button>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="importPreview.items.length === 0">
+                                        <td colspan="4" class="px-3 py-8 text-center text-gray-400">暂无明细，请点击“新增一行”补充</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border-t border-slate-200 bg-white/90 flex flex-wrap justify-end gap-2">
+                    <button @click="closeImportPreview" class="btn-base btn-soft">取消</button>
+                    <button @click="submitImport()" :disabled="importSubmitting" class="btn-base btn-primary">
+                        {{ importSubmitting ? '导入中...' : '确认导入' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- 重复物品处理模态框 -->
         <div v-if="showDuplicateModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-3" @click.self="closeDuplicateModal">
             <div class="modal-panel rounded-2xl w-full max-w-lg mx-1">
@@ -550,6 +651,7 @@
                     statuses: ['待采购', '已采购', '已到货', '已发放'],
                     departments: [],
                     paymentStatuses: ['未付款', '已付款', '已报销'],
+                    filterKeyword: '',
                     filterStatus: '',
                     filterDepartment: '',
                     filterMonth: '',
@@ -558,14 +660,24 @@
                     pageSizeOptions: [20, 50, 100],
                     jumpPage: null,
                     uploading: false,
+                    restoring: false,
+                    importSubmitting: false,
                     parseResult: null,
                     error: null,
                     showAddModal: false,  // 确保初始化为 false
+                    showImportPreviewModal: false,
                     selectedItems: [],
                     selectAll: false,
                     showDuplicateModal: false,
                     pendingDuplicates: [],
                     pendingParsedData: null,
+                    importPreview: {
+                        serial_number: '',
+                        department: '',
+                        handler: '',
+                        request_date: '',
+                        items: []
+                    },
                     newItem: {
                         serial_number: '', department: '', handler: '',
                         request_date: new Date().toISOString().split('T')[0],
@@ -583,14 +695,74 @@
             },
             methods: {
                 openAddModal() {
+                    this.showImportPreviewModal = false;
                     this.showDuplicateModal = false;
                     this.showAddModal = true;
                 },
                 closeAddModal() {
                     this.showAddModal = false;
                 },
+                normalizePreviewData(data) {
+                    const items = Array.isArray(data?.items) ? data.items : [];
+                    return {
+                        serial_number: (data?.serial_number || '').toString().trim(),
+                        department: (data?.department || '').toString().trim(),
+                        handler: (data?.handler || '').toString().trim(),
+                        request_date: (data?.request_date || '').toString().trim(),
+                        items: items.map((item) => {
+                            const qty = Number(item?.quantity);
+                            return {
+                                item_name: (item?.item_name || '').toString().trim(),
+                                quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+                                purchase_link: (item?.purchase_link || '').toString().trim(),
+                            };
+                        })
+                    };
+                },
+                openImportPreview(data) {
+                    this.importPreview = this.normalizePreviewData(data);
+                    this.showAddModal = false;
+                    this.showDuplicateModal = false;
+                    this.showImportPreviewModal = true;
+                },
+                closeImportPreview() {
+                    this.showImportPreviewModal = false;
+                    this.pendingDuplicates = [];
+                    this.pendingParsedData = null;
+                    this.importSubmitting = false;
+                },
+                addPreviewItem() {
+                    this.importPreview.items.push({
+                        item_name: '',
+                        quantity: 1,
+                        purchase_link: '',
+                    });
+                },
+                removePreviewItem(index) {
+                    this.importPreview.items.splice(index, 1);
+                },
+                sanitizeImportPayload(data) {
+                    const normalized = this.normalizePreviewData(data);
+                    const items = normalized.items
+                        .filter((item) => item.item_name)
+                        .map((item) => ({
+                            item_name: item.item_name,
+                            quantity: Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+                            purchase_link: item.purchase_link || null,
+                        }));
+                    return {
+                        serial_number: normalized.serial_number,
+                        department: normalized.department,
+                        handler: normalized.handler,
+                        request_date: normalized.request_date,
+                        items,
+                    };
+                },
                 closeDuplicateModal() {
                     this.showDuplicateModal = false;
+                    if (this.pendingParsedData) {
+                        this.openImportPreview(this.pendingParsedData);
+                    }
                     this.pendingDuplicates = [];
                     this.pendingParsedData = null;
                 },
@@ -614,6 +786,7 @@
                             page: this.currentPage,
                             page_size: this.pageSize,
                         };
+                        if (this.filterKeyword) params.keyword = this.filterKeyword;
                         if (this.filterStatus) params.status = this.filterStatus;
                         if (this.filterDepartment) params.department = this.filterDepartment;
                         if (this.filterMonth) params.month = this.filterMonth;
@@ -657,6 +830,7 @@
                     this.goToPage(target);
                 },
                 clearFilters() {
+                    this.filterKeyword = '';
                     this.filterStatus = '';
                     this.filterDepartment = '';
                     this.filterMonth = '';
@@ -664,6 +838,7 @@
                 },
                 exportExcel() {
                     const params = new URLSearchParams();
+                    if (this.filterKeyword) params.append('keyword', this.filterKeyword);
                     if (this.filterStatus) params.append('status', this.filterStatus);
                     if (this.filterDepartment) params.append('department', this.filterDepartment);
                     if (this.filterMonth) params.append('month', this.filterMonth);
@@ -714,6 +889,43 @@
                     item.invoice_issued = !item.invoice_issued;
                     await this.updateItem(item.id, { invoice_issued: item.invoice_issued });
                 },
+                backupData() {
+                    const url = '/api/backup';
+                    const newWindow = window.open(url, '_blank');
+                    if (!newWindow) window.location.href = url;
+                },
+                handleRestoreSelect(e) {
+                    const files = e.target.files;
+                    if (files.length) this.restoreFromBackup(files[0]);
+                    e.target.value = '';
+                },
+                async restoreFromBackup(file) {
+                    const ext = (file.name.split('.').pop() || '').toLowerCase();
+                    if (ext !== 'zip') {
+                        alert('请选择 .zip 备份文件');
+                        return;
+                    }
+                    if (!confirm('恢复会覆盖当前数据库和上传文件，是否继续？')) {
+                        return;
+                    }
+
+                    this.restoring = true;
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const res = await axios.post('/api/restore', formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' }
+                        });
+                        alert(res.data.message || '恢复成功');
+                        await this.loadAutocomplete();
+                        await this.loadItems();
+                        await this.loadStats();
+                    } catch(e) {
+                        alert('恢复失败: ' + (e.response?.data?.detail || e.message));
+                    } finally {
+                        this.restoring = false;
+                    }
+                },
                 handleFileSelect(e) { const files = e.target.files; if (files.length) this.uploadFile(files[0]); },
                 async uploadFile(file) {
                     const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
@@ -732,16 +944,7 @@
                         const res = await axios.post('/api/upload', formData, {
                             headers: { 'Content-Type': 'multipart/form-data' }
                         });
-                        if (res.data.has_duplicates) {
-                            this.showAddModal = false;
-                            this.pendingDuplicates = res.data.duplicates;
-                            this.pendingParsedData = res.data.parsed_data;
-                            this.showDuplicateModal = true;
-                        } else {
-                            this.parseResult = res.data.parsed_data;
-                            await this.loadItems();
-                            await this.loadStats();
-                        }
+                        this.openImportPreview(res.data.parsed_data);
                     } catch(e) {
                         console.error('上传错误:', e);
                         this.error = '上传失败: ' + (e.response?.data?.detail || e.message);
@@ -755,32 +958,54 @@
                     try { await Promise.all(this.selectedItems.map(id => axios.delete(`/api/items/${id}`))); this.selectedItems = []; await this.loadItems(); await this.loadStats(); }
                     catch(e) { alert('删除失败'); }
                 },
-                async handleDuplicates(action) {
+                async submitImport(duplicateAction = null) {
+                    const source = duplicateAction ? this.pendingParsedData : this.importPreview;
+                    if (!source) {
+                        alert('没有可导入的数据');
+                        return;
+                    }
+                    const payload = this.sanitizeImportPayload(source);
+                    if (!payload.items.length) {
+                        alert('请至少保留一条有效物品明细');
+                        return;
+                    }
+
+                    this.importSubmitting = true;
                     try {
-                        const p = this.pendingParsedData;
-                        const items_data = p.items.map(item => ({
-                            serial_number: p.serial_number || '',
-                            department: p.department || '',
-                            handler: p.handler || '',
-                            request_date: p.request_date || '',
-                            item_name: item.item_name || '',
-                            quantity: item.quantity || 1,
-                            purchase_link: item.purchase_link || null,
-                        }));
-                        const res = await axios.post('/api/upload/handle-duplicates', {
-                            action,
-                            duplicates: this.pendingDuplicates,
-                            items_data,
+                        const res = await axios.post('/api/import/confirm', {
+                            ...payload,
+                            duplicate_action: duplicateAction,
                         });
+                        if (res.data.has_duplicates) {
+                            this.pendingDuplicates = res.data.duplicates || [];
+                            this.pendingParsedData = payload;
+                            this.showImportPreviewModal = false;
+                            this.showDuplicateModal = true;
+                            return;
+                        }
+
+                        this.showImportPreviewModal = false;
                         this.showDuplicateModal = false;
                         this.pendingDuplicates = [];
                         this.pendingParsedData = null;
                         this.parseResult = res.data.parsed_data;
+                        this.importPreview = {
+                            serial_number: '',
+                            department: '',
+                            handler: '',
+                            request_date: '',
+                            items: []
+                        };
                         await this.loadItems();
                         await this.loadStats();
                     } catch(e) {
-                        alert('处理失败: ' + (e.response?.data?.detail || e.message));
+                        alert('导入失败: ' + (e.response?.data?.detail || e.message));
+                    } finally {
+                        this.importSubmitting = false;
                     }
+                },
+                async handleDuplicates(action) {
+                    await this.submitImport(action);
                 },
                 async manualAdd() {
                     try {

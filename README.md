@@ -5,10 +5,13 @@
 ## 核心功能
 
 - 自动解析领用单：提取流水号、申领部门、经办人、申领日期、物品明细
+- 导入预览与人工校正：上传后先预览，支持逐项修改后再确认入库
 - PDF + 图片识别：PDF 优先表格提取，图片使用 OCR 兜底
 - 申领部门精准解析：优先顶部“申领部门”字段，规避“部门领导意见/管理员意见”干扰
 - 重复物品处理：检测 `(流水号 + 物品名称 + 经办人)`，支持跳过/新增/合并数量
+- 一键备份/恢复：可下载当前数据库+上传文件备份，并一键恢复
 - 采购记录在线编辑：字段直接修改并保存
+- 关键字模糊搜索：支持流水号、物品名、经办人、申领部门
 - 高级筛选：按状态、申领部门、月份（`YYYY-MM`）筛选
 - 服务端分页：支持页码切换、每页条数切换、页码跳转
 - Excel 导出：按当前筛选导出 `.xlsx`
@@ -60,20 +63,24 @@ python desktop.py
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/` | 前端页面 |
-| GET | `/api/items` | 列表查询（支持 `status`/`department`/`month`/`page`/`page_size`） |
+| GET | `/api/items` | 列表查询（支持 `keyword`/`status`/`department`/`month`/`page`/`page_size`） |
 | GET | `/api/items/{id}` | 获取单条记录 |
 | POST | `/api/items` | 手动新增 |
 | PUT | `/api/items/{id}` | 更新记录 |
 | DELETE | `/api/items/{id}` | 删除记录 |
 | POST | `/api/upload` | 上传并解析领用单 |
+| POST | `/api/import/confirm` | 确认导入（支持人工校正与重复处理） |
 | POST | `/api/upload/handle-duplicates` | 处理重复物品 |
 | GET | `/api/stats` | 获取统计数据 |
 | GET | `/api/autocomplete` | 获取部门/经办人/状态候选 |
-| GET | `/api/export` | 导出 Excel（支持与列表一致的筛选参数） |
+| GET | `/api/export` | 导出 Excel（支持与列表一致的筛选参数，含 `keyword`） |
+| GET | `/api/backup` | 下载数据备份（数据库+上传文件） |
+| POST | `/api/restore` | 上传备份包并恢复数据 |
 
 ## 关键参数说明
 
 - `month`：必须是 `YYYY-MM`，例如 `2026-02`
+- `keyword`：模糊搜索关键词（会匹配流水号、物品名、经办人、申领部门）
 - `page`：页码，从 `1` 开始
 - `page_size`：每页条数，范围 `1-200`
 

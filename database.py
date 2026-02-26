@@ -24,10 +24,16 @@ class ItemStatus(str, Enum):
     DISTRIBUTED = "已发放"
 
 
+def _escape_like_pattern(value: str) -> str:
+    """转义 LIKE 特殊字符，避免输入中的 %/_ 被当作通配符。"""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _build_item_filters(
     status: Optional[str] = None,
     department: Optional[str] = None,
-    month: Optional[str] = None
+    month: Optional[str] = None,
+    keyword: Optional[str] = None
 ) -> tuple[list[str], list]:
     """构建筛选条件与参数。"""
     conditions = []
@@ -42,6 +48,17 @@ def _build_item_filters(
     if month:
         conditions.append("request_date LIKE ?")
         params.append(f"{month}%")
+    if keyword:
+        pattern = f"%{_escape_like_pattern(keyword)}%"
+        conditions.append(
+            "("
+            "serial_number LIKE ? ESCAPE '\\' OR "
+            "item_name LIKE ? ESCAPE '\\' OR "
+            "handler LIKE ? ESCAPE '\\' OR "
+            "department LIKE ? ESCAPE '\\'"
+            ")"
+        )
+        params.extend([pattern, pattern, pattern, pattern])
 
     return conditions, params
 
@@ -75,6 +92,7 @@ async def get_items(
     status: Optional[str] = None,
     department: Optional[str] = None,
     month: Optional[str] = None,
+    keyword: Optional[str] = None,
     page: Optional[int] = None,
     page_size: Optional[int] = None
 ) -> list[dict]:
@@ -82,7 +100,9 @@ async def get_items(
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         query = "SELECT * FROM items"
-        conditions, params = _build_item_filters(status=status, department=department, month=month)
+        conditions, params = _build_item_filters(
+            status=status, department=department, month=month, keyword=keyword
+        )
 
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
@@ -101,12 +121,15 @@ async def get_items(
 async def count_items(
     status: Optional[str] = None,
     department: Optional[str] = None,
-    month: Optional[str] = None
+    month: Optional[str] = None,
+    keyword: Optional[str] = None
 ) -> int:
     """获取筛选后的记录总数。"""
     async with aiosqlite.connect(DB_PATH) as db:
         query = "SELECT COUNT(*) FROM items"
-        conditions, params = _build_item_filters(status=status, department=department, month=month)
+        conditions, params = _build_item_filters(
+            status=status, department=department, month=month, keyword=keyword
+        )
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         async with db.execute(query, params) as cursor:
