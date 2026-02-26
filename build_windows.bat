@@ -3,44 +3,25 @@ setlocal EnableExtensions
 
 cd /d "%~dp0"
 
-echo [1/6] Detecting Python...
-set "PY_CMD="
-where py >nul 2>nul && set "PY_CMD=py -3"
-if not defined PY_CMD where python >nul 2>nul && set "PY_CMD=python"
-if not defined PY_CMD goto :no_python
-echo Using: %PY_CMD%
+where powershell >nul 2>nul
+if errorlevel 1 (
+  echo [ERROR] powershell.exe not found.
+  echo Please run build_windows.ps1 manually in PowerShell.
+  pause
+  exit /b 1
+)
 
-echo [2/6] Creating/Reusing virtual environment...
-if not exist "venv\Scripts\python.exe" %PY_CMD% -m venv venv || goto :error
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\build_windows.ps1"
+set "EXIT_CODE=%ERRORLEVEL%"
 
-call "venv\Scripts\activate.bat" || goto :error
-
-echo [3/6] Upgrading packaging tools...
-python -m pip install --upgrade pip setuptools wheel || goto :error
-
-echo [4/6] Installing dependencies...
-pip install -r requirements.txt || goto :error
-
-echo [5/6] Preparing offline web assets...
-python scripts\prepare_vendor_assets.py || goto :error
-
-echo [6/6] Building EXE...
-pyinstaller --noconfirm --clean build.spec || goto :error
+if not "%EXIT_CODE%"=="0" (
+  echo.
+  echo Build failed with exit code %EXIT_CODE%.
+  pause
+  exit /b %EXIT_CODE%
+)
 
 echo.
-echo Build completed:
-echo dist\office-supplies-desktop\office-supplies-desktop.exe
+echo Build finished successfully.
 pause
 exit /b 0
-
-:no_python
-echo [ERROR] Python 3 not found in PATH.
-echo Install Python 3.10+ and enable "Add python.exe to PATH".
-pause
-exit /b 1
-
-:error
-echo.
-echo Build failed. See errors above.
-pause
-exit /b 1
