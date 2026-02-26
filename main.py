@@ -13,7 +13,7 @@ from io import BytesIO
 from datetime import datetime
 
 from database import (
-    init_db, get_items, get_item, create_item, update_item, delete_item,
+    init_db, get_items, count_items, get_item, create_item, update_item, delete_item,
     batch_create_items, get_serial_numbers, get_departments, get_handlers,
     ItemStatus, PaymentStatus
 )
@@ -123,14 +123,30 @@ async def root():
 async def list_items(
     status: Optional[str] = None,
     department: Optional[str] = None,
-    month: Optional[str] = None
+    month: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
 ):
     """获取所有物品列表"""
+    if page < 1:
+        raise HTTPException(status_code=400, detail="page 必须 >= 1")
+    if page_size < 1 or page_size > 200:
+        raise HTTPException(status_code=400, detail="page_size 必须在 1-200 之间")
+
     status = _normalize_text_filter(status)
     department = _normalize_text_filter(department)
     month = _normalize_month(month)
-    items = await get_items(status=status, department=department, month=month)
-    return {"items": items}
+    items = await get_items(
+        status=status, department=department, month=month,
+        page=page, page_size=page_size
+    )
+    total = await count_items(status=status, department=department, month=month)
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
 
 
 @app.get("/api/export")

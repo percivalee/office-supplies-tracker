@@ -33,8 +33,7 @@ class DocumentParser:
             r'([A-Z]{2,}\d{6,})',
         ],
         "department": [
-            r'(?:申领部门|领用部门|申请部门|使用部门)[：:\s]*([^\s\n]+)',
-            r'(?m)^\s*部门[：:\s]*([^\s\n]+)',
+            r'申领部门[：:\s]*([^\n\r]+)',
         ],
         "handler": [
             r'经办人[：:\s]*([^\s\n（]+)',
@@ -481,40 +480,29 @@ class DocumentParser:
                 info["serial_number"] = match.group(1).strip()
                 break
 
-        # 部门：优先从“申领部门/部门”字段提取，支持跨行内容
+        # 部门：严格锚定“申领部门”，优先从顶部表格取右侧值
         info["department"] = self._extract_department()
 
         # 经办人
-        handler_match = re.search(r'经办人[：:\s]*([^\s\n（（]+)', self.text)
-        if handler_match:
-            info["handler"] = handler_match.group(1).strip()
-        else:
-            for pattern in self.PATTERNS["handler"]:
-                match = re.search(pattern, self.text)
-                if match:
-                    info["handler"] = match.group(1).strip()
-                    break
+        info["handler"] = self._extract_handler()
 
         # 日期
-        for pattern in self.PATTERNS["date"]:
-            match = re.search(pattern, self.text)
-            if match:
-                year, month, day = match.groups()
-                try:
-                    info["request_date"] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                except (AttributeError, ValueError):
-                    pass
-                break
+        info["request_date"] = self._extract_request_date()
 
         return info
 
     def _clean_department_text(self, value: str) -> str:
-        """清理部门文本，保留部门关键内容并去掉后续字段。"""
+        """清理部门文本，严格执行换行/空格清洗并去掉干扰字段。"""
         if not value:
             return ""
-        value = re.sub(r'[\t\r\n ]+', '', value)
-        value = re.sub(r'^(?:申领部门|领用部门|申请部门|使用部门|部门)[：:\s]*', '', value)
-        value = re.split(r'(?:经办人|申领人|申请人|日期|时间|流水号|单号|编号|联系电话)', value, maxsplit=1)[0]
+        value = str(value).replace('\n', '').replace(' ', '')
+        value = value.replace('\r', '').replace('\t', '')
+        value = re.sub(r'^申领部门[：:\s]*', '', value)
+        value = re.split(
+            r'(?:经办人|申领人|申请人|申领日期|日期|时间|流水号|单号|编号|联系电话|部门领导意见|管理员意见|审批意见)',
+            value,
+            maxsplit=1
+        )[0]
         value = value.strip("：:，,。；;")
         if any(kw in value for kw in ("部门领导", "领导意见", "管理员意见", "审批意见", "同意", "审批", "意见")):
             return ""
@@ -523,21 +511,20 @@ class DocumentParser:
         return value
 
     def _extract_department_from_text(self) -> str:
-        """从文本中提取申领部门，兼容跨行和括号断行。"""
-        lines = [re.sub(r'[\t\r\n ]+', '', line) for line in self.text.splitlines() if line and line.strip()]
-        stop_labels = r'(?:经办人|申领人|申请人|日期|时间|流水号|单号|编号|联系电话)'
+        """从文本中提取申领部门，严格锚定“申领部门”标签。"""
+        lines = [line for line in self.text.splitlines() if line and line.strip()]
+        stop_labels = r'(?:经办人|申领人|申请人|申领日期|日期|时间|流水号|单号|编号|联系电话|部门领导意见|管理员意见|审批意见)'
 
         def has_unclosed_bracket(text: str) -> bool:
             return (text.count("（") + text.count("(")) > (text.count("）") + text.count(")"))
 
-        # 先按行定位字段标签，避免误命中“部门领导/意见”。
         for idx, line in enumerate(lines):
-            if re.search(r'(?:申领部门|领用部门|申请部门|使用部门)', line) or re.match(r'^部门[：:]', line):
-                current = re.sub(r'^.*?(?:申领部门|领用部门|申请部门|使用部门|部门)[：:\s]*', '', line, count=1)
+            if "申领部门" in line and "部门领导意见" not in line and "管理员意见" not in line:
+                current = re.sub(r'^.*?申领部门[：:\s]*', '', line, count=1)
                 parts = [current] if current else []
                 if not current or has_unclosed_bracket(current):
                     for next_line in lines[idx + 1: idx + 4]:
-                        if re.search(stop_labels, next_line):
+                        if re.search(stop_labels, next_line) and "申领部门" not in next_line:
                             break
                         parts.append(next_line)
                         if not has_unclosed_bracket("".join(parts)):
@@ -548,8 +535,7 @@ class DocumentParser:
                     return dept
 
         patterns = [
-            rf'(?:申领部门|领用部门|申请部门|使用部门)[：:\s]*([\s\S]{{1,80}}?)(?={stop_labels}[：:\s]|$)',
-            rf'(?m)^\s*部门[：:\s]*([^\n\r]+)',
+            rf'申领部门[：:\s]*([\s\S]{{1,80}}?)(?={stop_labels}[：:\s]|$)',
         ]
         for pattern in patterns:
             match = re.search(pattern, self.text)
@@ -568,25 +554,25 @@ class DocumentParser:
         return ""
 
     def _extract_department_from_tables(self) -> str:
-        """从PDF表格中提取申领部门（文本提取不稳定时兜底）。"""
+        """从PDF表格中提取申领部门（严格取“申领部门”右侧单元格或同格值）。"""
         if not self.tables:
             return ""
 
         for table in self.tables:
-            for row in table:
+            for row_index, row in enumerate(table):
                 if not row:
                     continue
                 for idx, cell in enumerate(row):
                     cell_text = str(cell or "").strip()
                     if not cell_text:
                         continue
-                    is_department_label = (
-                        any(label in cell_text for label in ("申领部门", "领用部门", "申请部门", "使用部门"))
-                        or bool(re.match(r'^\s*部门[：:]?\s*$', cell_text))
-                    )
-                    if is_department_label:
+
+                    if "部门领导意见" in cell_text or "管理员意见" in cell_text:
+                        continue
+
+                    if "申领部门" in cell_text:
                         # 情况1：同单元格“申领部门: XXX”
-                        inline_match = re.search(r'(?:申领部门|领用部门|申请部门|使用部门|部门)[：:\s]*(.+)', cell_text)
+                        inline_match = re.search(r'申领部门[：:\s]*(.+)', cell_text)
                         if inline_match:
                             dept = self._clean_department_text(inline_match.group(1))
                             if dept:
@@ -597,14 +583,44 @@ class DocumentParser:
                             dept = self._clean_department_text(str(row[idx + 1] or ""))
                             if dept:
                                 return dept
+
+                        # 情况3：下一行首列是值（处理表格换行）
+                        if row_index + 1 < len(table):
+                            next_row = table[row_index + 1]
+                            if next_row:
+                                dept = self._clean_department_text(str(next_row[0] or ""))
+                                if dept:
+                                    return dept
         return ""
 
     def _extract_department(self) -> str:
-        """综合提取申领部门。"""
-        dept = self._extract_department_from_text()
+        """综合提取申领部门：表格优先，其次文本。"""
+        dept = self._extract_department_from_tables()
         if dept:
             return dept
-        return self._extract_department_from_tables()
+        return self._extract_department_from_text()
+
+    def _extract_handler(self) -> str:
+        """提取经办人信息，避免被其他“意见”字段干扰。"""
+        patterns = [
+            r'经办人[：:\s]*([^\s\n（(，,。；;]+)',
+            r'申领人[：:\s]*([^\s\n（(，,。；;]+)',
+            r'申请人[：:\s]*([^\s\n（(，,。；;]+)',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, self.text)
+            if match:
+                return match.group(1).strip()
+        return ""
+
+    def _extract_request_date(self) -> str:
+        """提取申领日期，统一转为 YYYY-MM-DD。"""
+        for pattern in self.PATTERNS["date"]:
+            match = re.search(pattern, self.text)
+            if match:
+                year, month, day = match.groups()
+                return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        return ""
 
     def _extract_items_from_tables(self) -> list[dict]:
         """从表格中提取明细"""

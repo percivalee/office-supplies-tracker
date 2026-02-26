@@ -25,6 +25,28 @@ class ItemStatus(str, Enum):
     DISTRIBUTED = "已发放"
 
 
+def _build_item_filters(
+    status: Optional[str] = None,
+    department: Optional[str] = None,
+    month: Optional[str] = None
+) -> tuple[list[str], list]:
+    """构建筛选条件与参数。"""
+    conditions = []
+    params = []
+
+    if status:
+        conditions.append("status = ?")
+        params.append(status)
+    if department:
+        conditions.append("department = ?")
+        params.append(department)
+    if month:
+        conditions.append("request_date LIKE ?")
+        params.append(f"{month}%")
+
+    return conditions, params
+
+
 async def init_db():
     """初始化数据库表"""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -53,32 +75,44 @@ async def init_db():
 async def get_items(
     status: Optional[str] = None,
     department: Optional[str] = None,
-    month: Optional[str] = None
+    month: Optional[str] = None,
+    page: Optional[int] = None,
+    page_size: Optional[int] = None
 ) -> list[dict]:
     """获取所有物品列表"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         query = "SELECT * FROM items"
-        conditions = []
-        params = []
-
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
-        if department:
-            conditions.append("department = ?")
-            params.append(department)
-        if month:
-            conditions.append("request_date LIKE ?")
-            params.append(f"{month}%")
+        conditions, params = _build_item_filters(status=status, department=department, month=month)
 
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY created_at DESC"
 
+        if page is not None and page_size is not None:
+            offset = max(0, (page - 1) * page_size)
+            query += " LIMIT ? OFFSET ?"
+            params.extend([page_size, offset])
+
         async with db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+
+
+async def count_items(
+    status: Optional[str] = None,
+    department: Optional[str] = None,
+    month: Optional[str] = None
+) -> int:
+    """获取筛选后的记录总数。"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        query = "SELECT COUNT(*) FROM items"
+        conditions, params = _build_item_filters(status=status, department=department, month=month)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        async with db.execute(query, params) as cursor:
+            row = await cursor.fetchone()
+            return int(row[0] if row else 0)
 
 
 async def get_item(item_id: int) -> Optional[dict]:
