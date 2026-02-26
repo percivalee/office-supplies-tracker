@@ -70,6 +70,12 @@ Windows 一键打包：
 build_windows.bat
 ```
 
+PowerShell 一键打包（推荐）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
+```
+
 产物目录：`dist/office-supplies-desktop/`
 
 ## API 一览
