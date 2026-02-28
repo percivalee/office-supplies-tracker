@@ -1,7 +1,4 @@
-from datetime import datetime
-from io import BytesIO
 from typing import Optional
-from urllib.parse import quote
 
 import aiosqlite
 from fastapi import APIRouter, HTTPException
@@ -26,6 +23,11 @@ from database import (
     get_serial_numbers,
     get_stats_summary,
     update_item,
+)
+from export_utils import (
+    ExportDependencyError,
+    build_export_content_disposition,
+    build_items_excel_stream,
 )
 from schemas import BatchUpdateRequest, ItemCreate, ItemUpdate
 
@@ -158,51 +160,11 @@ async def export_items(
     items = await get_items(status=status, department=department, month=month, keyword=keyword)
 
     try:
-        from openpyxl import Workbook
-        from openpyxl.utils import get_column_letter
-    except ModuleNotFoundError:
-        raise HTTPException(status_code=500, detail="缺少 openpyxl 依赖，请先安装 requirements.txt")
+        output = build_items_excel_stream(items)
+    except ExportDependencyError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "采购记录"
-
-    headers = [
-        "流水号", "申领日期", "申领部门", "经办人", "物品名称",
-        "数量", "单价", "状态", "到货日期", "分发对象", "分发日期", "签收备注",
-    ]
-    sheet.append(headers)
-
-    for item in items:
-        sheet.append([
-            item.get("serial_number", ""),
-            item.get("request_date", ""),
-            item.get("department", ""),
-            item.get("handler", ""),
-            item.get("item_name", ""),
-            item.get("quantity", ""),
-            "" if item.get("unit_price") is None else item.get("unit_price"),
-            item.get("status", ""),
-            item.get("arrival_date", ""),
-            item.get("recipient", ""),
-            item.get("distribution_date", ""),
-            item.get("signoff_note", ""),
-        ])
-
-    column_widths = [18, 12, 24, 12, 28, 10, 10, 12, 12, 14, 12, 28]
-    for idx, width in enumerate(column_widths, start=1):
-        sheet.column_dimensions[get_column_letter(idx)].width = width
-
-    output = BytesIO()
-    workbook.save(output)
-    output.seek(0)
-
-    filename = f"办公用品台账_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    encoded_filename = quote(filename)
-    content_disposition = (
-        f"attachment; filename=\"office_supplies_export.xlsx\"; "
-        f"filename*=UTF-8''{encoded_filename}"
-    )
+    content_disposition = build_export_content_disposition()
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

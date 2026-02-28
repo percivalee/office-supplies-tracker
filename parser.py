@@ -1,5 +1,7 @@
-import re
 import logging
+import os
+import re
+import threading
 import pdfplumber
 from typing import Optional, Union
 
@@ -7,27 +9,117 @@ logger = logging.getLogger(__name__)
 
 # 懒加载 PaddleOCR，避免模块导入时即加载模型
 _ocr = None
+_ocr_init_lock = threading.Lock()
+
+
+def _resolve_ocr_max_concurrent() -> int:
+    raw_value = os.getenv("PARSER_OCR_MAX_CONCURRENT", "1")
+    try:
+        return max(1, int(raw_value))
+    except (TypeError, ValueError):
+        logger.warning("Invalid PARSER_OCR_MAX_CONCURRENT=%r, fallback to 1", raw_value)
+        return 1
+
+
+_OCR_MAX_CONCURRENT = _resolve_ocr_max_concurrent()
+_ocr_semaphore = threading.BoundedSemaphore(_OCR_MAX_CONCURRENT)
 
 
 def _get_ocr():
     global _ocr
     if _ocr is None:
-        from paddleocr import PaddleOCR
-        _ocr = PaddleOCR(
-            use_angle_cls=True,
-            lang="ch",
-            show_log=False,
-            use_gpu=False
-        )
+        with _ocr_init_lock:
+            if _ocr is None:
+                from paddleocr import PaddleOCR
+                _ocr = PaddleOCR(
+                    use_angle_cls=True,
+                    lang="ch",
+                    show_log=False,
+                    use_gpu=False
+                )
     return _ocr
+
+
+def _run_ocr(file_path: str):
+    ocr = _get_ocr()
+    with _ocr_semaphore:
+        return ocr.ocr(file_path, cls=True)
+
+
+class ParserStrategy:
+    def parse(self, parser: "DocumentParser") -> dict:
+        raise NotImplementedError
+
+
+class PDFTableStrategy(ParserStrategy):
+    """处理规则 PDF 的文本+表格提取。"""
+
+    def parse(self, parser: "DocumentParser") -> dict:
+        return parser._parse_pdf()
+
+
+class PDFTextStrategy(PDFTableStrategy):
+    """兼容命名：文本为主的 PDF 提取策略。"""
+
+
+class PDFOCRStrategy(ParserStrategy):
+    """处理扫描件 PDF 或文本提取失败时的 OCR 兜底。"""
+
+    def parse(self, parser: "DocumentParser") -> dict:
+        return parser._parse_pdf_via_ocr()
+
+
+class OCRImageStrategy(ParserStrategy):
+    """处理图片和截图等 OCR 输入。"""
+
+    def parse(self, parser: "DocumentParser") -> dict:
+        return parser._parse_image()
+
+
+class ParserContext:
+    """根据文件类型调度解析策略。"""
+
+    def __init__(self, parser: "DocumentParser"):
+        self.parser = parser
+        self._pdf_text_strategy = PDFTableStrategy()
+        self._pdf_ocr_strategy = PDFOCRStrategy()
+        self._image_strategy = OCRImageStrategy()
+
+    def parse(self) -> dict:
+        if self.parser.file_type == "pdf":
+            return self._parse_pdf()
+        if self.parser.file_type == "image":
+            return self._image_strategy.parse(self.parser)
+        raise ValueError(f"不支持的文件类型: {self.parser.file_type}")
+
+    def _parse_pdf(self) -> dict:
+        parsed = self._pdf_text_strategy.parse(self.parser)
+        if self.parser._should_fallback_pdf_ocr(parsed):
+            ocr_parsed = self._pdf_ocr_strategy.parse(self.parser)
+            return self.parser._merge_pdf_and_ocr_result(parsed, ocr_parsed)
+        return parsed
 
 
 class DocumentParser:
     """办公用品领用单解析器"""
     MAX_PDF_PAGES = 5
     MIN_TEXT_LENGTH_FOR_PDF_PARSE = 40
+    HEADER_FIELD_KEYS = ("serial_number", "department", "handler", "request_date")
     DEPARTMENT_LABEL_ALIASES = ("申领部门", "申请部门", "领用部门", "使用部门")
     DEPARTMENT_LABEL_PATTERN = r"(?:申\s*领\s*部\s*门|申\s*请\s*部\s*门|领\s*用\s*部\s*门|使\s*用\s*部\s*门)"
+    OCR_TABLE_SERIAL_HEADER = "序号"
+    OCR_TABLE_ITEM_HEADERS = ("物品", "名称")
+    OCR_PRIMARY_ITEM_HEADER = "物品"
+    OCR_COLUMN_HEADERS = ("序号", "物品", "数量", "单价", "备注")
+    OCR_QUANTITY_MAX = 1000
+    OCR_QUANTITY_UNIT_PATTERN = r"(?:个|本|支|盒|包|只|条|件|台|把|套)"
+    TABLE_HEADER_KEYWORDS = ("物品名称", "品名", "序号")
+    TABLE_HEADER_REQUIRED_KEYWORDS = ("数量", "备注")
+    TABLE_SERIAL_ALIASES = ("序号", "编号")
+    TABLE_ITEM_ALIASES = ("物品", "品名", "名称")
+    TABLE_QUANTITY_HEADER = "数量"
+    TABLE_UNIT_PRICE_HEADER = "单价"
+    TABLE_REMARK_HEADER = "备注"
 
     # 正则表达式模式
     PATTERNS = {
@@ -93,12 +185,7 @@ class DocumentParser:
 
     def parse(self) -> dict:
         """主解析方法"""
-        if self.file_type == 'pdf':
-            return self._parse_pdf()
-        elif self.file_type == 'image':
-            return self._parse_image()
-        else:
-            raise ValueError(f"不支持的文件类型: {self.file_type}")
+        return ParserContext(self).parse()
 
     def _parse_pdf(self) -> dict:
         """解析 PDF 文件"""
@@ -137,12 +224,6 @@ class DocumentParser:
 
             parsed = self._parse_from_tables_and_text()
             parsed["items"] = self._deduplicate_items(parsed.get("items", []))
-
-            # 扫描件 PDF 常见无文本/无表格，触发 OCR 兜底。
-            if self._should_fallback_pdf_ocr(parsed):
-                ocr_parsed = self._parse_pdf_via_ocr()
-                parsed = self._merge_pdf_and_ocr_result(parsed, ocr_parsed)
-
             return parsed
 
     def _merge_pdf_and_ocr_result(self, parsed: dict, ocr_parsed: dict) -> dict:
@@ -160,7 +241,7 @@ class DocumentParser:
         ocr_items = self._deduplicate_items((ocr_parsed or {}).get("items") or [])
         base["items"] = parsed_items if parsed_items else ocr_items
 
-        for key in ("serial_number", "department", "handler", "request_date"):
+        for key in self.HEADER_FIELD_KEYS:
             if not str(base.get(key) or "").strip():
                 candidate = str((ocr_parsed or {}).get(key) or "").strip()
                 if candidate:
@@ -170,8 +251,7 @@ class DocumentParser:
 
     def _parse_image(self) -> dict:
         """解析图片文件（OCR）"""
-        ocr = _get_ocr()
-        raw_result = ocr.ocr(self.file_path, cls=True)
+        raw_result = _run_ocr(self.file_path)
         ocr_pages = self._extract_ocr_pages(raw_result)
         ocr_results = ocr_pages[0] if ocr_pages else []
 
@@ -194,7 +274,7 @@ class DocumentParser:
         if items and parsed.get("department"):
             return False
         compact_text = re.sub(r"\s+", "", self.text or "")
-        has_header = any(parsed.get(key) for key in ("serial_number", "department", "handler", "request_date"))
+        has_header = any(parsed.get(key) for key in self.HEADER_FIELD_KEYS)
         missing_department = not str(parsed.get("department") or "").strip()
         return (
             len(compact_text) < self.MIN_TEXT_LENGTH_FOR_PDF_PARSE
@@ -244,8 +324,7 @@ class DocumentParser:
     def _parse_pdf_via_ocr(self) -> dict:
         """PDF OCR 兜底：用于扫描件或文本提取失败场景。"""
         try:
-            ocr = _get_ocr()
-            raw_result = ocr.ocr(self.file_path, cls=True)
+            raw_result = _run_ocr(self.file_path)
         except Exception as exc:
             logger.warning("PDF OCR fallback failed: %s", exc)
             return self._get_empty_result()
@@ -280,7 +359,7 @@ class DocumentParser:
             )
 
         # OCR 没拿到表头时，回退到原 PDF 文本再尝试一次。
-        if original_text and not any(result.get(k) for k in ("serial_number", "department", "handler", "request_date")):
+        if original_text and not any(result.get(k) for k in self.HEADER_FIELD_KEYS):
             self.text = original_text
             result.update(self._extract_header_info())
 
@@ -355,7 +434,10 @@ class DocumentParser:
         table_start = -1
         for idx, line in enumerate(lines):
             line_text = " ".join([item[1][0] for item in line])
-            if "序号" in line_text and ("物品" in line_text or "名称" in line_text):
+            if (
+                self.OCR_TABLE_SERIAL_HEADER in line_text
+                and any(keyword in line_text for keyword in self.OCR_TABLE_ITEM_HEADERS)
+            ):
                 table_start = idx
                 break
         if table_start == -1:
@@ -371,7 +453,7 @@ class DocumentParser:
         header_idx = -1
         for idx, line in enumerate(lines):
             line_text = " ".join([item[1][0] for item in line])
-            if "序号" in line_text and "物品" in line_text:
+            if self.OCR_TABLE_SERIAL_HEADER in line_text and self.OCR_PRIMARY_ITEM_HEADER in line_text:
                 header_line = line
                 header_idx = idx
                 break
@@ -402,7 +484,7 @@ class DocumentParser:
     def _determine_column_ranges(self, header_line: list) -> dict:
         """确定表格列的X坐标范围"""
         # 找到各关键词的X位置
-        col_keywords = ["序号", "物品", "数量", "单价", "备注"]
+        col_keywords = self.OCR_COLUMN_HEADERS
         col_positions = {}
 
         for item in header_line:
@@ -415,11 +497,12 @@ class DocumentParser:
                         col_positions[keyword] = x
 
         # 根据关键词位置确定列范围
+        serial_header, item_header, quantity_header, unit_price_header, remark_header = self.OCR_COLUMN_HEADERS
         ranges = {
-            "serial": (col_positions.get("序号", 0), col_positions.get("物品", 1000)),
-            "item_name": (col_positions.get("物品", 0), col_positions.get("数量", 1000)),
-            "quantity": (col_positions.get("数量", 0), col_positions.get("单价", 1000)),
-            "remark": (col_positions.get("备注", 0), 9999),
+            "serial": (col_positions.get(serial_header, 0), col_positions.get(item_header, 1000)),
+            "item_name": (col_positions.get(item_header, 0), col_positions.get(quantity_header, 1000)),
+            "quantity": (col_positions.get(quantity_header, 0), col_positions.get(unit_price_header, 1000)),
+            "remark": (col_positions.get(remark_header, 0), 9999),
         }
 
         return ranges
@@ -460,7 +543,7 @@ class DocumentParser:
         if quantity_text:
             try:
                 qty = float(quantity_text)
-                if 0 < qty <= 1000:
+                if 0 < qty <= self.OCR_QUANTITY_MAX:
                     quantity = int(qty) if qty == int(qty) else qty
             except (ValueError, TypeError):
                 pass
@@ -514,10 +597,10 @@ class DocumentParser:
         if qty_match:
             potential_qty = float(qty_match.group(1))
             # 只把看起来像数量的值当作数量（1-1000之间的小数或整数）
-            if 0 < potential_qty <= 1000:
+            if 0 < potential_qty <= self.OCR_QUANTITY_MAX:
                 # 检查是否是独立的数量（不是型号的一部分）
                 # 如果行中有单位词，或者数字单独出现
-                if re.search(r'个|本|支|盒|包|只|条|件|台|把|套', line_text):
+                if re.search(self.OCR_QUANTITY_UNIT_PATTERN, line_text):
                     # 从行文本中智能提取数量
                     quantity = self._smart_extract_quantity_from_line(line_text)
 
@@ -560,7 +643,7 @@ class DocumentParser:
         """从行文本中智能提取数量"""
         # 优先匹配带单位的数字
         unit_patterns = [
-            r'(\d+\.?\d*)\s*(?:个|本|支|盒|包|只|条|件|台|把|套)',
+            rf'(\d+\.?\d*)\s*{self.OCR_QUANTITY_UNIT_PATTERN}',
         ]
 
         for pattern in unit_patterns:
@@ -568,7 +651,7 @@ class DocumentParser:
             if match:
                 try:
                     qty = float(match.group(1))
-                    if 0 < qty <= 1000:
+                    if 0 < qty <= self.OCR_QUANTITY_MAX:
                         return int(qty) if qty == int(qty) else qty
                 except (ValueError, TypeError):
                     pass
@@ -836,8 +919,8 @@ class DocumentParser:
         """找到表头行"""
         for idx, row in enumerate(table):
             row_text = " ".join([str(cell or "") for cell in row])
-            if any(keyword in row_text for keyword in ["物品名称", "品名", "序号"]):
-                if "数量" in row_text or "备注" in row_text:
+            if any(keyword in row_text for keyword in self.TABLE_HEADER_KEYWORDS):
+                if any(keyword in row_text for keyword in self.TABLE_HEADER_REQUIRED_KEYWORDS):
                     return idx
         return -1
 
@@ -853,15 +936,15 @@ class DocumentParser:
 
         for idx, cell in enumerate(header_row):
             cell_text = str(cell or "").strip()
-            if "序号" in cell_text or "编号" in cell_text:
+            if any(keyword in cell_text for keyword in self.TABLE_SERIAL_ALIASES):
                 mapping["serial"] = idx
-            elif "物品" in cell_text or "品名" in cell_text or "名称" in cell_text:
+            elif any(keyword in cell_text for keyword in self.TABLE_ITEM_ALIASES):
                 mapping["item_name"] = idx
-            elif "数量" in cell_text:
+            elif self.TABLE_QUANTITY_HEADER in cell_text:
                 mapping["quantity"] = idx
-            elif "单价" in cell_text:
+            elif self.TABLE_UNIT_PRICE_HEADER in cell_text:
                 mapping["unit_price"] = idx
-            elif "备注" in cell_text:
+            elif self.TABLE_REMARK_HEADER in cell_text:
                 mapping["remark"] = idx
 
         return mapping
