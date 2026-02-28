@@ -62,6 +62,21 @@ def normalize_url(value) -> Optional[str]:
     return text
 
 
+def is_noise_item_name(value) -> bool:
+    text = normalize_text(value, TEXT_LENGTH_LIMITS["item_name"]).replace(" ", "")
+    if not text:
+        return True
+    if re.fullmatch(r"[#＃]+", text):
+        return True
+
+    if text in {"物品名称", "数量", "关联链接", "采购链接", "备注", "序号", "操作"}:
+        return True
+
+    if "物品名称" in text and "数量" in text and ("关联链接" in text or "采购链接" in text):
+        return True
+    return False
+
+
 def item_key(item: dict) -> tuple[str, str, str]:
     """构造判重键：流水号 + 物品名称 + 经办人。"""
     return (
@@ -105,7 +120,7 @@ def normalize_import_payload(payload: dict) -> dict:
     merged_items: dict[tuple[str, str, str], dict] = {}
     for raw in payload.get("items", []):
         item_name = normalize_text((raw or {}).get("item_name"), TEXT_LENGTH_LIMITS["item_name"])
-        if not item_name:
+        if not item_name or is_noise_item_name(item_name):
             continue
         key = (serial_number, item_name, handler)
         quantity = safe_quantity((raw or {}).get("quantity"))

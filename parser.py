@@ -26,6 +26,8 @@ class DocumentParser:
     """办公用品领用单解析器"""
     MAX_PDF_PAGES = 5
     MIN_TEXT_LENGTH_FOR_PDF_PARSE = 40
+    DEPARTMENT_LABEL_ALIASES = ("申领部门", "申请部门", "领用部门", "使用部门")
+    DEPARTMENT_LABEL_PATTERN = r"(?:申\s*领\s*部\s*门|申\s*请\s*部\s*门|领\s*用\s*部\s*门|使\s*用\s*部\s*门)"
 
     # 正则表达式模式
     PATTERNS = {
@@ -34,7 +36,7 @@ class DocumentParser:
             r'([A-Z]{2,}\d{6,})',
         ],
         "department": [
-            r'申领部门[：:\s]*([^\n\r]+)',
+            rf'{DEPARTMENT_LABEL_PATTERN}[：:\s]*([^\n\r]+)',
         ],
         "handler": [
             r'经办人[：:\s]*([^\s\n（]+)',
@@ -171,11 +173,16 @@ class DocumentParser:
 
     def _should_fallback_pdf_ocr(self, parsed: dict) -> bool:
         items = parsed.get("items") or []
-        if items:
+        if items and parsed.get("department"):
             return False
         compact_text = re.sub(r"\s+", "", self.text or "")
         has_header = any(parsed.get(key) for key in ("serial_number", "department", "handler", "request_date"))
-        return len(compact_text) < self.MIN_TEXT_LENGTH_FOR_PDF_PARSE or not has_header
+        missing_department = not str(parsed.get("department") or "").strip()
+        return (
+            len(compact_text) < self.MIN_TEXT_LENGTH_FOR_PDF_PARSE
+            or not has_header
+            or missing_department
+        )
 
     def _is_ocr_item(self, value) -> bool:
         return (
@@ -627,7 +634,7 @@ class DocumentParser:
             return ""
         value = str(value).replace('\n', '').replace(' ', '')
         value = value.replace('\r', '').replace('\t', '')
-        value = re.sub(r'^申领部门[：:\s]*', '', value)
+        value = re.sub(rf'^(?:.*?){self.DEPARTMENT_LABEL_PATTERN}[：:\s]*', '', value, count=1)
         value = re.split(
             r'(?:经办人|申领人|申请人|申领日期|日期|时间|流水号|单号|编号|联系电话|部门领导意见|管理员意见|审批意见)',
             value,
@@ -640,6 +647,32 @@ class DocumentParser:
             return ""
         return value
 
+    def _normalize_label_text(self, value: str) -> str:
+        return re.sub(r'[\s:：]', '', str(value or ""))
+
+    def _contains_department_label(self, value: str) -> bool:
+        compact = self._normalize_label_text(value)
+        return any(alias in compact for alias in self.DEPARTMENT_LABEL_ALIASES)
+
+    def _contains_opinion_label(self, value: str) -> bool:
+        compact = self._normalize_label_text(value)
+        return "部门领导意见" in compact or "管理员意见" in compact
+
+    def _extract_department_from_row_cells(self, row: list, start_idx: int = 0) -> str:
+        """从同一行中提取部门值，容忍空单元格与跨列。"""
+        if not row:
+            return ""
+        for idx in range(max(0, start_idx), len(row)):
+            cell_text = str(row[idx] or "").strip()
+            if not cell_text:
+                continue
+            if self._contains_opinion_label(cell_text) or self._contains_department_label(cell_text):
+                continue
+            dept = self._clean_department_text(cell_text)
+            if dept:
+                return dept
+        return ""
+
     def _extract_department_from_text(self) -> str:
         """从文本中提取申领部门，严格锚定“申领部门”标签。"""
         lines = [line for line in self.text.splitlines() if line and line.strip()]
@@ -649,12 +682,17 @@ class DocumentParser:
             return (text.count("（") + text.count("(")) > (text.count("）") + text.count(")"))
 
         for idx, line in enumerate(lines):
-            if "申领部门" in line and "部门领导意见" not in line and "管理员意见" not in line:
-                current = re.sub(r'^.*?申领部门[：:\s]*', '', line, count=1)
+            if self._contains_department_label(line) and not self._contains_opinion_label(line):
+                current = re.sub(
+                    rf'^.*?{self.DEPARTMENT_LABEL_PATTERN}[：:\s]*',
+                    '',
+                    line,
+                    count=1
+                )
                 parts = [current] if current else []
                 if not current or has_unclosed_bracket(current):
                     for next_line in lines[idx + 1: idx + 4]:
-                        if re.search(stop_labels, next_line) and "申领部门" not in next_line:
+                        if re.search(stop_labels, next_line) and not self._contains_department_label(next_line):
                             break
                         parts.append(next_line)
                         if not has_unclosed_bracket("".join(parts)):
@@ -665,7 +703,7 @@ class DocumentParser:
                     return dept
 
         patterns = [
-            rf'申领部门[：:\s]*([\s\S]{{1,80}}?)(?={stop_labels}[：:\s]|$)',
+            rf'{self.DEPARTMENT_LABEL_PATTERN}[：:\s]*([\s\S]{{1,80}}?)(?={stop_labels}[：:\s]|$)',
         ]
         for pattern in patterns:
             match = re.search(pattern, self.text)
@@ -697,30 +735,33 @@ class DocumentParser:
                     if not cell_text:
                         continue
 
-                    if "部门领导意见" in cell_text or "管理员意见" in cell_text:
+                    if self._contains_opinion_label(cell_text):
                         continue
 
-                    if "申领部门" in cell_text:
+                    next_text = str(row[idx + 1] or "").strip() if idx + 1 < len(row) else ""
+                    pair_compact = self._normalize_label_text(cell_text + next_text)
+                    has_split_label = any(alias in pair_compact for alias in self.DEPARTMENT_LABEL_ALIASES)
+
+                    if self._contains_department_label(cell_text) or has_split_label:
                         # 情况1：同单元格“申领部门: XXX”
-                        inline_match = re.search(r'申领部门[：:\s]*(.+)', cell_text)
+                        inline_match = re.search(rf'{self.DEPARTMENT_LABEL_PATTERN}[：:\s]*(.+)', cell_text)
                         if inline_match:
                             dept = self._clean_department_text(inline_match.group(1))
                             if dept:
                                 return dept
 
-                        # 情况2：值在相邻单元格
-                        if idx + 1 < len(row):
-                            dept = self._clean_department_text(str(row[idx + 1] or ""))
+                        # 情况2：值在同一行右侧（可能隔空单元格）
+                        start_idx = idx + 2 if has_split_label else idx + 1
+                        dept = self._extract_department_from_row_cells(row, start_idx=start_idx)
+                        if dept:
+                            return dept
+
+                        # 情况3：下一行（或下几行）是值（处理表格换行）
+                        for next_idx in range(row_index + 1, min(row_index + 4, len(table))):
+                            next_row = table[next_idx]
+                            dept = self._extract_department_from_row_cells(next_row, start_idx=0)
                             if dept:
                                 return dept
-
-                        # 情况3：下一行首列是值（处理表格换行）
-                        if row_index + 1 < len(table):
-                            next_row = table[row_index + 1]
-                            if next_row:
-                                dept = self._clean_department_text(str(next_row[0] or ""))
-                                if dept:
-                                    return dept
         return ""
 
     def _extract_department(self) -> str:

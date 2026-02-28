@@ -356,6 +356,31 @@
                         return '';
                     }
                 },
+                isPreviewRowNoise(itemName) {
+                    const normalized = this.normalizeText(itemName).replace(/\s+/g, '');
+                    if (!normalized) return true;
+                    if (/^[#＃]+$/.test(normalized)) return true;
+
+                    const exactNoise = new Set([
+                        '物品名称',
+                        '数量',
+                        '关联链接',
+                        '采购链接',
+                        '备注',
+                        '序号',
+                        '操作',
+                    ]);
+                    if (exactNoise.has(normalized)) return true;
+
+                    if (
+                        normalized.includes('物品名称')
+                        && normalized.includes('数量')
+                        && (normalized.includes('关联链接') || normalized.includes('采购链接'))
+                    ) {
+                        return true;
+                    }
+                    return false;
+                },
                 normalizePreviewData(data) {
                     const items = Array.isArray(data?.items) ? data.items : [];
                     return {
@@ -363,16 +388,18 @@
                         department: this.normalizeText(data?.department),
                         handler: this.normalizeText(data?.handler),
                         request_date: this.normalizeDateText(data?.request_date),
-                        items: items.map((item) => {
-                            const qty = Number(item?.quantity);
-                            const rawLink = (item?.purchase_link || '').toString();
-                            const normalizedLink = this.normalizeUrlText(rawLink);
-                            return {
-                                item_name: this.normalizeText(item?.item_name),
-                                quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
-                                purchase_link: normalizedLink || this.normalizeText(rawLink),
-                            };
-                        })
+                        items: items
+                            .map((item) => {
+                                const qty = Number(item?.quantity);
+                                const rawLink = (item?.purchase_link || '').toString();
+                                const normalizedLink = this.normalizeUrlText(rawLink);
+                                return {
+                                    item_name: this.normalizeText(item?.item_name),
+                                    quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+                                    purchase_link: normalizedLink || this.normalizeText(rawLink),
+                                };
+                            })
+                            .filter((item) => !this.isPreviewRowNoise(item.item_name))
                     };
                 },
                 openImportPreview(data) {

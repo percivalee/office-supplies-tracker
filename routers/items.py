@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 from typing import Optional
+from urllib.parse import quote
 
 import aiosqlite
 from fastapi import APIRouter, HTTPException
@@ -167,11 +168,12 @@ async def export_items(
     workbook.save(output)
     output.seek(0)
 
-    filename = f"office_supplies_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filename = f"办公用品台账_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    encoded_filename = quote(filename)
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
     )
 
 
