@@ -18,6 +18,7 @@ from database import (
     delete_item,
     get_amount_report,
     get_departments,
+    get_execution_board,
     get_handlers,
     get_item,
     get_item_history,
@@ -94,6 +95,27 @@ async def list_items(
     }
 
 
+@router.get("/execution-board")
+async def execution_board(
+    department: Optional[str] = None,
+    month: Optional[str] = None,
+    keyword: Optional[str] = None,
+    limit_per_status: int = 80,
+):
+    """采购执行看板（按待办状态分栏）。"""
+    if limit_per_status < 1 or limit_per_status > 300:
+        raise HTTPException(status_code=400, detail="limit_per_status 必须在 1-300 之间")
+    _, department, month, keyword = _normalize_item_filters(
+        None, department, month, keyword
+    )
+    return await get_execution_board(
+        department=department,
+        month=month,
+        keyword=keyword,
+        limit_per_status=limit_per_status,
+    )
+
+
 @router.post("/items/batch-update")
 async def batch_update_items_endpoint(request: BatchUpdateRequest):
     """批量更新记录。"""
@@ -145,7 +167,10 @@ async def export_items(
     sheet = workbook.active
     sheet.title = "采购记录"
 
-    headers = ["流水号", "申领日期", "申领部门", "经办人", "物品名称", "数量", "单价", "状态"]
+    headers = [
+        "流水号", "申领日期", "申领部门", "经办人", "物品名称",
+        "数量", "单价", "状态", "到货日期", "分发对象", "分发日期", "签收备注",
+    ]
     sheet.append(headers)
 
     for item in items:
@@ -158,9 +183,13 @@ async def export_items(
             item.get("quantity", ""),
             "" if item.get("unit_price") is None else item.get("unit_price"),
             item.get("status", ""),
+            item.get("arrival_date", ""),
+            item.get("recipient", ""),
+            item.get("distribution_date", ""),
+            item.get("signoff_note", ""),
         ])
 
-    column_widths = [18, 12, 24, 12, 28, 10, 10, 12]
+    column_widths = [18, 12, 24, 12, 28, 10, 10, 12, 12, 14, 12, 28]
     for idx, width in enumerate(column_widths, start=1):
         sheet.column_dimensions[get_column_letter(idx)].width = width
 

@@ -1,17 +1,24 @@
 from enum import Enum
+from pathlib import Path
 
-DB_PATH = "office_supplies.db"
+from app_runtime import RUNTIME_DIR
+
+# 始终锚定到运行目录，避免“业务读写库”和“备份恢复库”路径不一致。
+DB_PATH = str((Path(RUNTIME_DIR) / "office_supplies.db").resolve())
 
 ALLOWED_COLUMNS = frozenset({
     "serial_number", "department", "handler", "request_date",
     "item_name", "quantity", "purchase_link", "unit_price",
     "status", "invoice_issued", "payment_status",
+    "arrival_date", "recipient", "distribution_date", "signoff_note",
 })
 
 ITEM_COLUMNS = (
     "id", "serial_number", "department", "handler", "request_date",
     "item_name", "quantity", "purchase_link", "unit_price", "status",
-    "invoice_issued", "payment_status", "created_at", "updated_at",
+    "invoice_issued", "payment_status",
+    "arrival_date", "recipient", "distribution_date", "signoff_note",
+    "created_at", "updated_at",
 )
 
 
@@ -23,6 +30,15 @@ class PaymentStatus(str, Enum):
 
 class ItemStatus(str, Enum):
     PENDING = "待采购"
-    PURCHASED = "已采购"
-    ARRIVED = "已到货"
-    DISTRIBUTED = "已发放"
+    ORDERED = "已下单"
+    PENDING_ARRIVAL = "待到货"
+    PENDING_DISTRIBUTION = "待分发"
+    DISTRIBUTED = "已分发"
+
+
+EXECUTION_BOARD_COLUMNS = (
+    ("pending_purchase", ItemStatus.PENDING.value),
+    ("ordered", ItemStatus.ORDERED.value),
+    ("pending_arrival", ItemStatus.PENDING_ARRIVAL.value),
+    ("pending_distribution", ItemStatus.PENDING_DISTRIBUTION.value),
+)

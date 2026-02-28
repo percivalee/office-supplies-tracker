@@ -1,9 +1,12 @@
-import shutil
-
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 
-from api_utils import build_upload_path, safe_unlink
+from api_utils import (
+    MAX_DOCUMENT_UPLOAD_BYTES,
+    build_upload_path,
+    safe_unlink,
+    save_upload_file_with_limit,
+)
 from import_flow import build_preview_data, confirm_import_payload, normalize_import_payload
 from parser import parse_document
 from schemas import DuplicateHandleRequest, ImportConfirmRequest
@@ -16,11 +19,13 @@ async def upload_and_parse(file: UploadFile = File(...)):
     """上传文件并解析。"""
     file_path = build_upload_path(file.filename or "")
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    await file.close()
-
     try:
+        save_upload_file_with_limit(
+            file,
+            file_path,
+            max_bytes=MAX_DOCUMENT_UPLOAD_BYTES,
+            file_label="上传文件",
+        )
         result = await run_in_threadpool(parse_document, str(file_path))
         normalized_payload = normalize_import_payload({
             "serial_number": result.get("serial_number", ""),
@@ -38,9 +43,12 @@ async def upload_and_parse(file: UploadFile = File(...)):
             "requires_confirmation": True,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"解析失败: {str(e)}")
     finally:
+        await file.close()
         safe_unlink(file_path)
 
 

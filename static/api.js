@@ -28,6 +28,274 @@
                     const gb = mb / 1024;
                     return `${gb.toFixed(2)} GB`;
                 },
+                isValidView(view) {
+                    return ['dashboard', 'ledger', 'execution', 'reports', 'audit'].includes(view);
+                },
+                normalizeView(view) {
+                    return this.isValidView(view) ? view : 'dashboard';
+                },
+                getViewFromHash() {
+                    const raw = (window.location.hash || '')
+                        .replace(/^#\/?/, '')
+                        .trim()
+                        .toLowerCase();
+                    return this.normalizeView(raw || 'dashboard');
+                },
+                setViewHash(view, replace = false) {
+                    const normalized = this.normalizeView(view);
+                    const hash = `#/${normalized}`;
+                    if (window.location.hash === hash) return;
+                    if (replace && window.history?.replaceState) {
+                        const base = `${window.location.pathname}${window.location.search}`;
+                        window.history.replaceState(null, '', `${base}${hash}`);
+                    } else {
+                        window.location.hash = hash;
+                    }
+                },
+                ensureViewData(view, forceReload = false) {
+                    const normalized = this.normalizeView(view);
+                    if (normalized === 'execution') {
+                        if (forceReload || !this.executionInitialized) {
+                            this.loadExecutionBoard();
+                        }
+                        return;
+                    }
+                    if (normalized === 'reports') {
+                        if (forceReload || !this.reportsInitialized) {
+                            this.loadAmountReport();
+                        }
+                        return;
+                    }
+                    if (normalized === 'audit') {
+                        if (forceReload || !this.auditInitialized) {
+                            this.historyPage = 1;
+                            this.loadHistory();
+                        }
+                    }
+                },
+                switchView(view, forceReload = false, syncHash = true) {
+                    const normalized = this.normalizeView(view);
+                    this.currentView = normalized;
+                    if (syncHash) {
+                        this.setViewHash(normalized);
+                    }
+                    this.ensureViewData(normalized, forceReload);
+                },
+                handleHashChange() {
+                    const nextView = this.getViewFromHash();
+                    this.switchView(nextView, false, false);
+                },
+                initViewRouting() {
+                    const nextView = this.getViewFromHash();
+                    this.switchView(nextView, false, false);
+                    this.setViewHash(nextView, true);
+                    if (this.hashChangeListener) {
+                        window.removeEventListener('hashchange', this.hashChangeListener);
+                    }
+                    this.hashChangeListener = () => this.handleHashChange();
+                    window.addEventListener('hashchange', this.hashChangeListener);
+                },
+                async loadExecutionBoard() {
+                    this.executionInitialized = true;
+                    this.executionLoading = true;
+                    try {
+                        const params = {
+                            limit_per_status: this.executionBoard.limit_per_status || 80,
+                        };
+                        if (this.boardKeyword) params.keyword = this.boardKeyword;
+                        if (this.boardDepartment) params.department = this.boardDepartment;
+                        if (this.boardMonth) params.month = this.boardMonth;
+                        const res = await axios.get('/api/execution-board', { params });
+                        const data = res.data || {};
+                        this.executionBoard = {
+                            columns: Array.isArray(data.columns) ? data.columns : [],
+                            total: Number(data.total) || 0,
+                            limit_per_status: Number(data.limit_per_status) || 80,
+                        };
+                    } catch (e) {
+                        this.showToast('加载执行看板失败: ' + (e.response?.data?.detail || e.message), 'error');
+                    } finally {
+                        this.executionLoading = false;
+                    }
+                },
+                applyExecutionFilter() {
+                    this.loadExecutionBoard();
+                },
+                clearExecutionFilter() {
+                    this.boardKeyword = '';
+                    this.boardDepartment = '';
+                    this.boardMonth = '';
+                    this.loadExecutionBoard();
+                },
+                todayDateText() {
+                    const now = new Date();
+                    const mm = String(now.getMonth() + 1).padStart(2, '0');
+                    const dd = String(now.getDate()).padStart(2, '0');
+                    return `${now.getFullYear()}-${mm}-${dd}`;
+                },
+                async updateExecutionItem(item, patch, successMessage = '状态已更新') {
+                    if (!item?.id) return false;
+                    const ok = await this.updateItem(item.id, patch);
+                    if (!ok) return false;
+                    await this.loadExecutionBoard();
+                    await this.loadStats();
+                    this.showToast(successMessage, 'success');
+                    return true;
+                },
+                async moveToOrdered(item) {
+                    await this.updateExecutionItem(item, { status: '已下单' }, '已流转到“已下单”');
+                },
+                async moveToPendingArrival(item) {
+                    await this.updateExecutionItem(item, { status: '待到货' }, '已流转到“待到货”');
+                },
+                async markArrived(item) {
+                    const arrivalDate = this.normalizeDateText(item.arrival_date || this.todayDateText());
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(arrivalDate)) {
+                        this.showToast('请填写有效的到货日期', 'error');
+                        return;
+                    }
+                    item.arrival_date = arrivalDate;
+                    await this.updateExecutionItem(
+                        item,
+                        { status: '待分发', arrival_date: arrivalDate },
+                        '已标记到货，流转到“待分发”'
+                    );
+                },
+                async completeDistribution(item) {
+                    const recipient = this.normalizeText(item.recipient);
+                    if (!recipient) {
+                        this.showToast('请填写分发对象', 'error');
+                        return;
+                    }
+                    const distributionDate = this.normalizeDateText(item.distribution_date || this.todayDateText());
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(distributionDate)) {
+                        this.showToast('请填写有效的分发日期', 'error');
+                        return;
+                    }
+                    const signoffNote = this.normalizeText(item.signoff_note);
+                    item.recipient = recipient;
+                    item.distribution_date = distributionDate;
+                    item.signoff_note = signoffNote;
+                    await this.updateExecutionItem(
+                        item,
+                        {
+                            status: '已分发',
+                            recipient,
+                            distribution_date: distributionDate,
+                            signoff_note: signoffNote || null,
+                        },
+                        '已完成分发闭环'
+                    );
+                },
+                isInlineEditing(id, field) {
+                    return this.inlineEditId === id && this.inlineEditField === field;
+                },
+                setInlineEditRef(id, field, el) {
+                    const key = `${id}:${field}`;
+                    if (el) {
+                        this.inlineEditRefs[key] = el;
+                    } else {
+                        delete this.inlineEditRefs[key];
+                    }
+                },
+                startInlineEdit(id, field) {
+                    this.inlineEditId = id;
+                    this.inlineEditField = field;
+                    this.inlineEditCommitting = false;
+                    this.$nextTick(() => {
+                        const key = `${id}:${field}`;
+                        const input = this.inlineEditRefs[key];
+                        if (input) {
+                            input.focus();
+                            if (typeof input.select === 'function') {
+                                input.select();
+                            }
+                        }
+                    });
+                },
+                cancelInlineEdit() {
+                    this.inlineEditId = null;
+                    this.inlineEditField = '';
+                    this.inlineEditCommitting = false;
+                },
+                showToast(message, type = 'success', duration = 2200, action = null) {
+                    const text = (message || '').toString().trim();
+                    if (!text) return;
+                    const id = this.nextToastId++;
+                    const toast = { id, message: text, type };
+                    if (action && action.label && typeof action.handler === 'function') {
+                        toast.actionLabel = action.label;
+                        toast.actionHandler = action.handler;
+                    }
+                    this.toasts.push(toast);
+                    const timer = setTimeout(() => {
+                        this.toasts = this.toasts.filter((toast) => toast.id !== id);
+                        this.toastTimers = this.toastTimers.filter((t) => t !== timer);
+                    }, duration);
+                    this.toastTimers.push(timer);
+                },
+                async triggerToastAction(toastId) {
+                    const toast = this.toasts.find((t) => t.id === toastId);
+                    if (!toast || typeof toast.actionHandler !== 'function') return;
+                    this.toasts = this.toasts.filter((t) => t.id !== toastId);
+                    try {
+                        await toast.actionHandler();
+                    } catch (e) {
+                        this.showToast('操作失败: ' + (e?.response?.data?.detail || e?.message || '未知错误'), 'error');
+                    }
+                },
+                showSuccessToast(message) {
+                    this.showToast(message || '更新成功', 'success');
+                },
+                openConfirmDialog(options = {}) {
+                    const {
+                        title = '请确认',
+                        message = '确认继续此操作？',
+                        confirmText = '确认',
+                        cancelText = '取消',
+                        danger = false,
+                    } = options;
+
+                    if (this.confirmModalResolver) {
+                        this.confirmModalResolver(false);
+                    }
+
+                    this.confirmModalTitle = title;
+                    this.confirmModalMessage = message;
+                    this.confirmModalConfirmText = confirmText;
+                    this.confirmModalCancelText = cancelText;
+                    this.confirmModalDanger = !!danger;
+                    this.confirmModalVisible = true;
+
+                    return new Promise((resolve) => {
+                        this.confirmModalResolver = resolve;
+                    });
+                },
+                resolveConfirmDialog(result) {
+                    const resolver = this.confirmModalResolver;
+                    this.confirmModalVisible = false;
+                    this.confirmModalResolver = null;
+                    if (resolver) resolver(!!result);
+                },
+                cancelConfirmDialog() {
+                    this.resolveConfirmDialog(false);
+                },
+                acceptConfirmDialog() {
+                    this.resolveConfirmDialog(true);
+                },
+                async commitInlineEdit(item, field) {
+                    if (!item || !this.isInlineEditing(item.id, field) || this.inlineEditCommitting) {
+                        return;
+                    }
+                    this.inlineEditCommitting = true;
+                    const ok = await this.updateItem(item.id, { [field]: item[field] });
+                    this.inlineEditCommitting = false;
+                    this.inlineEditId = null;
+                    this.inlineEditField = '';
+                    if (ok) {
+                        this.showSuccessToast(field === 'quantity' ? '数量已更新' : '单价已更新');
+                    }
+                },
                 async openWebdavModal() {
                     this.showWebdavModal = true;
                     this.webdavSelectedBackup = '';
@@ -56,7 +324,7 @@
                             has_password: !!config.has_password,
                         };
                     } catch (e) {
-                        alert('加载 WebDAV 配置失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('加载 WebDAV 配置失败: ' + (e.response?.data?.detail || e.message), 'error');
                     }
                 },
                 async saveWebdavConfig(showAlert = true, manageLoading = true) {
@@ -70,7 +338,7 @@
                         };
                         const res = await axios.put('/api/webdav/config', payload);
                         if (showAlert) {
-                            alert(res.data?.message || 'WebDAV 配置已保存');
+                            this.showToast(res.data?.message || 'WebDAV 配置已保存', 'success');
                         }
                         const config = res.data?.config || {};
                         this.webdavConfig.configured = !!config.configured;
@@ -79,7 +347,7 @@
                         return config;
                     } catch (e) {
                         if (showAlert) {
-                            alert('保存 WebDAV 配置失败: ' + (e.response?.data?.detail || e.message));
+                            this.showToast('保存 WebDAV 配置失败: ' + (e.response?.data?.detail || e.message), 'error');
                         }
                         throw e;
                     } finally {
@@ -91,9 +359,9 @@
                     try {
                         await this.saveWebdavConfig(false, false);
                         const res = await axios.post('/api/webdav/test');
-                        alert(res.data?.message || '连接测试通过');
+                        this.showToast(res.data?.message || '连接测试通过', 'success');
                     } catch (e) {
-                        alert('WebDAV 测试失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('WebDAV 测试失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.webdavLoading = false;
                     }
@@ -107,7 +375,7 @@
                             this.webdavSelectedBackup = '';
                         }
                     } catch (e) {
-                        alert('加载 WebDAV 备份列表失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('加载 WebDAV 备份列表失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.webdavLoading = false;
                     }
@@ -117,10 +385,10 @@
                     try {
                         await this.saveWebdavConfig(false, false);
                         const res = await axios.post('/api/webdav/backup');
-                        alert(res.data?.message || '上传成功');
+                        this.showToast(res.data?.message || '上传成功', 'success');
                         await this.loadWebdavBackups();
                     } catch (e) {
-                        alert('上传 WebDAV 失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('上传 WebDAV 失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.webdavLoading = false;
                     }
@@ -128,10 +396,17 @@
                 async restoreFromWebdav(filename) {
                     const name = (filename || '').toString().trim();
                     if (!name) {
-                        alert('请先选择要恢复的备份');
+                        this.showToast('请先选择要恢复的备份', 'error');
                         return;
                     }
-                    if (!confirm(`确认从 WebDAV 恢复备份 ${name}？这会覆盖当前数据。`)) {
+                    const ok = await this.openConfirmDialog({
+                        title: '确认恢复云端备份',
+                        message: `将从 ${name} 恢复并覆盖当前数据，是否继续？`,
+                        confirmText: '确认恢复',
+                        cancelText: '取消',
+                        danger: true,
+                    });
+                    if (!ok) {
                         return;
                     }
                     this.webdavLoading = true;
@@ -139,25 +414,19 @@
                     try {
                         await this.saveWebdavConfig(false, false);
                         const res = await axios.post('/api/webdav/restore', { filename: name });
-                        alert(res.data?.message || '恢复成功');
+                        this.showToast(res.data?.message || '恢复成功', 'success');
                         await this.loadAutocomplete();
                         await this.loadItems();
                         await this.loadStats();
                     } catch (e) {
-                        alert('从 WebDAV 恢复失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('从 WebDAV 恢复失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.webdavLoading = false;
                         this.restoring = false;
                     }
                 },
-                openAmountReportModal() {
-                    this.showAmountReportModal = true;
-                    this.loadAmountReport();
-                },
-                closeAmountReportModal() {
-                    this.showAmountReportModal = false;
-                },
                 async loadAmountReport() {
+                    this.reportsInitialized = true;
                     this.amountReportLoading = true;
                     try {
                         const params = {};
@@ -179,18 +448,10 @@
                             by_month: Array.isArray(data.by_month) ? data.by_month : []
                         };
                     } catch (e) {
-                        alert('加载金额报表失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('加载金额报表失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.amountReportLoading = false;
                     }
-                },
-                openHistoryModal() {
-                    this.showHistoryModal = true;
-                    this.historyPage = 1;
-                    this.loadHistory();
-                },
-                closeHistoryModal() {
-                    this.showHistoryModal = false;
                 },
                 historyActionLabel(action) {
                     const labels = { create: '新增', update: '修改', delete: '删除' };
@@ -209,6 +470,10 @@
                         status: '状态',
                         invoice_issued: '发票',
                         payment_status: '付款状态',
+                        arrival_date: '到货日期',
+                        recipient: '分发对象',
+                        distribution_date: '分发日期',
+                        signoff_note: '签收备注',
                     };
                     return labels[field] || field;
                 },
@@ -239,6 +504,7 @@
                     return parts.join('；');
                 },
                 async loadHistory() {
+                    this.auditInitialized = true;
                     this.historyLoading = true;
                     try {
                         const params = {
@@ -257,7 +523,7 @@
                             await this.loadHistory();
                         }
                     } catch (e) {
-                        alert('加载变更历史失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('加载变更历史失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.historyLoading = false;
                     }
@@ -542,6 +808,8 @@
                         item_name: '物品名称',
                         status: '状态',
                         payment_status: '付款状态',
+                        recipient: '分发对象',
+                        signoff_note: '签收备注',
                     };
                     for (const field of ['serial_number', 'department', 'handler', 'item_name', 'status', 'payment_status']) {
                         if (Object.prototype.hasOwnProperty.call(payload, field)) {
@@ -550,6 +818,26 @@
                                 throw new Error(`${fieldLabels[field] || field} 不能为空`);
                             }
                             payload[field] = field === 'serial_number' ? value.toUpperCase().replace(/\s+/g, '') : value;
+                        }
+                    }
+                    for (const field of ['recipient', 'signoff_note']) {
+                        if (Object.prototype.hasOwnProperty.call(payload, field)) {
+                            const value = this.normalizeText(payload[field]);
+                            payload[field] = value || null;
+                        }
+                    }
+                    for (const field of ['arrival_date', 'distribution_date']) {
+                        if (Object.prototype.hasOwnProperty.call(payload, field)) {
+                            const rawValue = (payload[field] || '').toString().trim();
+                            if (!rawValue) {
+                                payload[field] = null;
+                                continue;
+                            }
+                            const normalizedDate = this.normalizeDateText(rawValue);
+                            if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+                                throw new Error(`${field === 'arrival_date' ? '到货日期' : '分发日期'}格式应为 YYYY-MM-DD`);
+                            }
+                            payload[field] = normalizedDate;
                         }
                     }
                     if (Object.prototype.hasOwnProperty.call(payload, 'purchase_link')) {
@@ -589,16 +877,25 @@
                         const payload = this.normalizeItemUpdatePayload(data);
                         await axios.put(`/api/items/${id}`, payload);
                         await this.loadStats();
+                        return true;
                     }
                     catch(e) {
-                        alert('更新失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('更新失败: ' + (e.response?.data?.detail || e.message), 'error');
                         await this.loadItems();
+                        return false;
                     }
                 },
                 async deleteItem(id) {
-                    if (!confirm('确定删除吗？')) return;
+                    const ok = await this.openConfirmDialog({
+                        title: '确认删除记录',
+                        message: '删除后不可恢复，是否继续？',
+                        confirmText: '删除',
+                        cancelText: '取消',
+                        danger: true,
+                    });
+                    if (!ok) return;
                     try { await axios.delete(`/api/items/${id}`); await this.loadItems(); await this.loadStats(); }
-                    catch(e) { alert('删除失败'); }
+                    catch(e) { this.showToast('删除失败', 'error'); }
                 },
                 async toggleInvoice(item) {
                     item.invoice_issued = !item.invoice_issued;
@@ -617,10 +914,17 @@
                 async restoreFromBackup(file) {
                     const ext = (file.name.split('.').pop() || '').toLowerCase();
                     if (ext !== 'zip') {
-                        alert('请选择 .zip 备份文件');
+                        this.showToast('请选择 .zip 备份文件', 'error');
                         return;
                     }
-                    if (!confirm('恢复会覆盖当前数据库和上传文件，是否继续？')) {
+                    const ok = await this.openConfirmDialog({
+                        title: '确认恢复本地备份',
+                        message: '恢复会覆盖当前数据库和上传文件，是否继续？',
+                        confirmText: '确认恢复',
+                        cancelText: '取消',
+                        danger: true,
+                    });
+                    if (!ok) {
                         return;
                     }
 
@@ -631,12 +935,12 @@
                         const res = await axios.post('/api/restore', formData, {
                             headers: { 'Content-Type': 'multipart/form-data' }
                         });
-                        alert(res.data.message || '恢复成功');
+                        this.showToast(res.data.message || '恢复成功', 'success');
                         await this.loadAutocomplete();
                         await this.loadItems();
                         await this.loadStats();
                     } catch(e) {
-                        alert('恢复失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('恢复失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.restoring = false;
                     }
@@ -648,6 +952,7 @@
                     const ext = (file.name.split('.').pop() || '').toLowerCase();
                     if (!validTypes.includes(file.type) && !validExts.includes(ext)) {
                         this.error = '仅支持 PDF 或 图片格式';
+                        this.showToast(this.error, 'error');
                         return;
                     }
                     this.uploading = true;
@@ -663,6 +968,7 @@
                     } catch(e) {
                         console.error('上传错误:', e);
                         this.error = '上传失败: ' + (e.response?.data?.detail || e.message);
+                        this.showToast(this.error, 'error');
                     } finally {
                         this.uploading = false;
                     }
@@ -697,22 +1003,59 @@
                     if (!this.selectedItems.length) return;
                     try {
                         const updates = this.buildBatchUpdatePayload();
-                        if (!confirm(`确认批量修改 ${this.selectedItems.length} 条记录？`)) return;
+                        const selectedIds = [...this.selectedItems];
+                        const updatedField = Object.keys(updates)[0];
+                        const previousValues = this.items
+                            .filter((item) => selectedIds.includes(item.id))
+                            .map((item) => ({ id: item.id, value: item[updatedField] }));
+                        const ok = await this.openConfirmDialog({
+                            title: '确认批量修改',
+                            message: `确认批量修改 ${this.selectedItems.length} 条记录？`,
+                            confirmText: '确认修改',
+                            cancelText: '取消',
+                            danger: false,
+                        });
+                        if (!ok) return;
                         const res = await axios.post('/api/items/batch-update', {
                             ids: this.selectedItems,
                             updates,
                         });
-                        alert(res.data?.message || '批量修改完成');
+                        this.showToast(
+                            res.data?.message || '批量修改完成',
+                            'success',
+                            8000,
+                            {
+                                label: '撤销',
+                                handler: async () => {
+                                    await Promise.all(
+                                        previousValues.map(({ id, value }) =>
+                                            axios.put(`/api/items/${id}`, this.normalizeItemUpdatePayload({ [updatedField]: value }))
+                                        )
+                                    );
+                                    await this.loadItems();
+                                    await this.loadStats();
+                                    await this.loadAutocomplete();
+                                    this.showToast('已撤销本次批量修改', 'success');
+                                },
+                            }
+                        );
                         await this.loadItems();
                         await this.loadStats();
                         await this.loadAutocomplete();
                         this.batchEditValue = '';
                     } catch (e) {
-                        alert('批量修改失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('批量修改失败: ' + (e.response?.data?.detail || e.message), 'error');
                     }
                 },
                 async batchDelete() {
-                    if (!confirm(`删除 ${this.selectedItems.length} 条记录？`)) return;
+                    const ok = await this.openConfirmDialog({
+                        title: '确认批量删除',
+                        message: `删除 ${this.selectedItems.length} 条记录后不可恢复，是否继续？`,
+                        confirmText: '确认删除',
+                        cancelText: '取消',
+                        danger: true,
+                    });
+                    if (!ok) return;
                     try {
                         await Promise.all(this.selectedItems.map(id => axios.delete(`/api/items/${id}`)));
                         this.selectedItems = [];
@@ -720,23 +1063,23 @@
                         await this.loadItems();
                         await this.loadStats();
                     }
-                    catch(e) { alert('删除失败'); }
+                    catch(e) { this.showToast('删除失败', 'error'); }
                 },
                 async submitImport(duplicateAction = null) {
                     const source = duplicateAction ? this.pendingParsedData : this.importPreview;
                     if (!source) {
-                        alert('没有可导入的数据');
+                        this.showToast('没有可导入的数据', 'error');
                         return;
                     }
                     const payload = this.sanitizeImportPayload(source);
                     try {
                         this.validateImportPayload(payload);
                     } catch (e) {
-                        alert(e.message);
+                        this.showToast(e.message, 'error');
                         return;
                     }
                     if (!payload.items.length) {
-                        alert('请至少保留一条有效物品明细');
+                        this.showToast('请至少保留一条有效物品明细', 'error');
                         return;
                     }
 
@@ -768,8 +1111,9 @@
                         };
                         await this.loadItems();
                         await this.loadStats();
+                        this.showToast(res.data?.message || '导入完成', 'success');
                     } catch(e) {
-                        alert('导入失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('导入失败: ' + (e.response?.data?.detail || e.message), 'error');
                     } finally {
                         this.importSubmitting = false;
                     }
@@ -781,7 +1125,7 @@
                     try {
                         const quantity = Number(this.newItem.quantity);
                         if (!Number.isFinite(quantity) || quantity <= 0) {
-                            alert('数量必须大于 0');
+                            this.showToast('数量必须大于 0', 'error');
                             return;
                         }
 
@@ -790,14 +1134,14 @@
                         const handler = this.normalizeText(this.newItem.handler);
                         const itemName = this.normalizeText(this.newItem.item_name);
                         if (!requestDate || !department || !handler || !itemName) {
-                            alert('请补全 申领日期 / 申领部门 / 经办人 / 物品名称');
+                            this.showToast('请补全 申领日期 / 申领部门 / 经办人 / 物品名称', 'error');
                             return;
                         }
 
                         const rawLink = (this.newItem.purchase_link || '').toString().trim();
                         const normalizedLink = this.normalizeUrlText(rawLink);
                         if (rawLink && !normalizedLink) {
-                            alert('采购链接必须是有效的 http(s) URL');
+                            this.showToast('采购链接必须是有效的 http(s) URL', 'error');
                             return;
                         }
 
@@ -839,8 +1183,9 @@
                         };
                         await this.loadItems();
                         await this.loadStats();
+                        this.showToast('添加成功', 'success');
                     } catch(e) {
-                        alert('添加失败: ' + (e.response?.data?.detail || e.message));
+                        this.showToast('添加失败: ' + (e.response?.data?.detail || e.message), 'error');
                     }
                 }
             },

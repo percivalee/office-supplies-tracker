@@ -2,6 +2,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from db.constants import ItemStatus, PaymentStatus
+
 
 class ItemCreate(BaseModel):
     serial_number: str = Field(min_length=1, max_length=120)
@@ -12,9 +14,13 @@ class ItemCreate(BaseModel):
     quantity: float = Field(gt=0)
     purchase_link: Optional[str] = Field(default=None, max_length=2000)
     unit_price: Optional[float] = Field(default=None, ge=0)
-    status: str = Field(default="待采购", min_length=1, max_length=40)
+    status: ItemStatus = Field(default=ItemStatus.PENDING)
     invoice_issued: bool = False
-    payment_status: str = Field(default="未付款", min_length=1, max_length=40)
+    payment_status: PaymentStatus = Field(default=PaymentStatus.UNPAID)
+    arrival_date: Optional[str] = Field(default=None, max_length=32)
+    recipient: Optional[str] = Field(default=None, max_length=120)
+    distribution_date: Optional[str] = Field(default=None, max_length=32)
+    signoff_note: Optional[str] = Field(default=None, max_length=500)
 
 
 class ItemUpdate(BaseModel):
@@ -26,9 +32,13 @@ class ItemUpdate(BaseModel):
     quantity: Optional[float] = Field(default=None, gt=0)
     purchase_link: Optional[str] = Field(default=None, max_length=2000)
     unit_price: Optional[float] = Field(default=None, ge=0)
-    status: Optional[str] = Field(default=None, min_length=1, max_length=40)
+    status: Optional[ItemStatus] = None
     invoice_issued: Optional[bool] = None
-    payment_status: Optional[str] = Field(default=None, min_length=1, max_length=40)
+    payment_status: Optional[PaymentStatus] = None
+    arrival_date: Optional[str] = Field(default=None, max_length=32)
+    recipient: Optional[str] = Field(default=None, max_length=120)
+    distribution_date: Optional[str] = Field(default=None, max_length=32)
+    signoff_note: Optional[str] = Field(default=None, max_length=500)
 
 
 class ImportItem(BaseModel):

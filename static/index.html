@@ -14,163 +14,630 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/app.css">
+    <style>
+        .toast-enter-active,
+        .toast-leave-active {
+            transition: all 0.28s ease;
+        }
+
+        .toast-enter-from,
+        .toast-leave-to {
+            opacity: 0;
+            transform: translate3d(22px, -10px, 0);
+        }
+
+        .toast-move {
+            transition: transform 0.28s ease;
+        }
+    </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden bg-slate-50">
-    <div id="app" class="app-shell mx-auto w-full max-w-[1920px] h-screen px-6 py-6 flex flex-col" style="display:none;">
+    <body class="flex h-screen w-full bg-slate-50 overflow-hidden text-slate-900">
+    <div id="app" class="flex h-screen w-full overflow-hidden" style="display:none;">
         <input type="file" ref="fileInput" @change="handleFileSelect" accept=".pdf,.png,.jpg,.jpeg,.jfif" class="hidden">
         <input type="file" ref="restoreInput" @change="handleRestoreSelect" accept=".zip" class="hidden">
 
-        <!-- 顶部导航 -->
-        <header class="mb-5 shrink-0 bg-white border border-slate-200 rounded-xl px-6 py-4 flex items-center justify-between shadow-sm">
-            <div class="flex items-center gap-4">
-                <div class="w-10 h-10 rounded-lg bg-blue-900 flex items-center justify-center text-white shadow-md">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <aside class="w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col">
+            <div class="h-16 px-5 border-b border-slate-200 flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">办公用品采购追踪系统</h1>
-                    <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-0.5">Procurement Management & Compliance Audit</p>
+                    <div class="text-sm font-semibold text-slate-900">办公用品采购系统</div>
+                    <div class="text-[11px] text-slate-500">Admin Dashboard</div>
                 </div>
             </div>
+            <nav class="p-3 space-y-1">
+                <button @click="switchView('dashboard')"
+                        :class="currentView === 'dashboard' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'text-slate-600 hover:bg-slate-50'"
+                        class="w-full h-10 px-3 rounded-lg text-left text-sm font-medium transition-all duration-200 ease-in-out">
+                    📊 概览
+                </button>
+                <button @click="switchView('ledger')"
+                        :class="currentView === 'ledger' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'text-slate-600 hover:bg-slate-50'"
+                        class="w-full h-10 px-3 rounded-lg text-left text-sm font-medium transition-all duration-200 ease-in-out">
+                    📄 台账
+                </button>
+                <button @click="switchView('execution')"
+                        :class="currentView === 'execution' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'text-slate-600 hover:bg-slate-50'"
+                        class="w-full h-10 px-3 rounded-lg text-left text-sm font-medium transition-all duration-200 ease-in-out">
+                    🧭 执行看板
+                </button>
+                <button @click="switchView('reports')"
+                        :class="currentView === 'reports' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'text-slate-600 hover:bg-slate-50'"
+                        class="w-full h-10 px-3 rounded-lg text-left text-sm font-medium transition-all duration-200 ease-in-out">
+                    📊 统计报表
+                </button>
+                <button @click="switchView('audit')"
+                        :class="currentView === 'audit' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'text-slate-600 hover:bg-slate-50'"
+                        class="w-full h-10 px-3 rounded-lg text-left text-sm font-medium transition-all duration-200 ease-in-out">
+                    🛡️ 审计日志
+                </button>
+            </nav>
+        </aside>
 
-            <div class="flex items-center gap-3">
-                <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 mr-2">
-                    <button @click="backupData" class="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-900">备份</button>
-                    <div class="w-px h-4 bg-slate-300"></div>
-                    <button @click="$refs.restoreInput && $refs.restoreInput.click()" class="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-900">恢复</button>
-                    <div class="w-px h-4 bg-slate-300"></div>
-                    <button @click="openWebdavModal" class="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-900">云同步</button>
-                </div>
-                
-                <button @click="$refs.fileInput && $refs.fileInput.click()" class="btn-base btn-secondary">导入单据</button>
-                <button @click="openAddModal" class="btn-base btn-primary">手动新增</button>
-                
-                <div class="flex gap-2 ml-4">
-                    <button @click="openAmountReportModal" class="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-900 hover:bg-slate-50 transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></button>
-                    <button @click="openHistoryModal" class="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-900 hover:bg-slate-50 transition-all"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>
-                </div>
-            </div>
-        </header>
-
-        <!-- 关键统计 -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 shrink-0">
-            <div class="metric-card bg-white border border-slate-200 shadow-sm">
-                <div class="metric-label">所有采购项</div>
-                <div class="metric-value">{{ stats.total }}</div>
-            </div>
-            <div class="metric-card bg-white border border-slate-200 shadow-sm">
-                <div class="metric-label">待采购申请</div>
-                <div class="metric-value text-orange-600">{{ stats.status_count['待采购'] || 0 }}</div>
-            </div>
-            <div class="metric-card bg-white border border-slate-200 shadow-sm">
-                <div class="metric-label">已开具发票</div>
-                <div class="metric-value text-green-600">{{ stats.invoice_count.issued }}</div>
-            </div>
-            <div class="metric-card bg-white border border-slate-200 shadow-sm">
-                <div class="metric-label">已完成报销</div>
-                <div class="metric-value text-blue-600">{{ stats.payment_count['已报销'] || 0 }}</div>
-            </div>
-        </div>
-
-        <!-- 数据表格管理 -->
-        <div class="flex-1 min-h-0 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-            <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
-                <div class="relative flex-1 max-w-md">
-                    <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    <input v-model="filterKeyword" @keyup.enter="handleFilter" class="toolbar-control w-full pl-10 h-10 border border-slate-200 focus:border-blue-500 rounded-lg text-sm" placeholder="快速定位采购记录...">
+        <div class="flex-1 min-w-0 flex flex-col">
+            <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+                <div class="text-sm text-slate-500">
+                    <span class="font-medium text-slate-800">{{ currentView === 'dashboard' ? '概览看板' : (currentView === 'ledger' ? '采购台账明细' : (currentView === 'execution' ? '采购执行看板' : (currentView === 'reports' ? '统计报表' : '审计日志'))) }}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <select v-model="filterStatus" @change="handleFilter" class="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm font-semibold">
-                        <option value="">采购状态</option>
-                        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-                    </select>
-                    <select v-model="filterDepartment" @change="handleFilter" class="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm font-semibold">
-                        <option value="">部门筛选</option>
-                        <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
-                    </select>
-                    <input type="month" v-model="filterMonth" @change="handleFilter" class="h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm font-semibold">
+                    <button @click="backupData" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">备份</button>
+                    <button @click="$refs.restoreInput && $refs.restoreInput.click()" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">恢复</button>
+                    <button @click="openWebdavModal" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">云同步</button>
                 </div>
-                <button @click="handleFilter" class="btn-base btn-secondary h-10 px-5 font-bold">搜索</button>
-                <button @click="exportExcel" class="btn-base btn-soft h-10 px-5 ml-auto font-bold tracking-tight">导出 EXCEL 报表</button>
-            </div>
+            </header>
 
-            <!-- 批量操作栏 -->
-            <div v-if="selectedItems.length > 0" class="px-5 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3">
-                <span class="text-xs font-bold text-blue-900 uppercase">Selected: {{ selectedItems.length }}</span>
-                <select v-model="batchEditField" @change="onBatchFieldChange" class="h-7 py-0 px-2 text-[11px] bg-white border border-blue-200 rounded font-bold">
-                    <option value="">批量修改字段...</option>
-                    <option value="status">采购状态</option>
-                    <option value="payment_status">付款状态</option>
-                </select>
-                <button @click="batchUpdate" v-if="batchEditField" class="btn-base btn-primary h-7 px-4 text-[11px] font-bold">应用修改</button>
-                <button @click="batchDelete" class="btn-base btn-danger h-7 px-4 text-[11px] font-bold ml-auto">批量删除记录</button>
-            </div>
+            <main class="flex-1 min-h-0 p-6 overflow-hidden">
+                <section v-if="currentView === 'dashboard'" class="h-full overflow-y-auto space-y-6 pr-1">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-5">
+                            <div class="text-sm font-medium text-slate-500">所有采购项</div>
+                            <div class="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{{ stats.total }}</div>
+                        </div>
+                        <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-5">
+                            <div class="text-sm font-medium text-slate-500">待采购申请</div>
+                            <div class="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{{ stats.status_count['待采购'] || 0 }}</div>
+                        </div>
+                        <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-5">
+                            <div class="text-sm font-medium text-slate-500">已开具发票</div>
+                            <div class="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{{ stats.invoice_count.issued }}</div>
+                        </div>
+                        <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-5">
+                            <div class="text-sm font-medium text-slate-500">已完成报销</div>
+                            <div class="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{{ stats.payment_count['已报销'] || 0 }}</div>
+                        </div>
+                    </div>
 
-            <div class="table-container flex-1 overflow-auto">
-                <table class="w-full text-sm records-table">
-                    <thead class="sticky top-0 z-10 bg-slate-50 shadow-sm">
-                        <tr>
-                            <th class="w-12 text-center"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" class="rounded"></th>
-                            <th class="w-28">部门</th>
-                            <th class="w-24">经办人</th>
-                            <th>物品规格与名称</th>
-                            <th class="w-16 text-center">链接</th>
-                            <th class="w-20 text-center">数量</th>
-                            <th class="w-24 text-center">单价(¥)</th>
-                            <th class="w-32 text-center">状态</th>
-                            <th class="w-16 text-center">发票</th>
-                            <th class="w-32 text-center">付款进度</th>
-                            <th class="w-16 text-center">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        <tr v-for="item in items" :key="item.id" :class="{'bg-blue-50/30': selectedItems.includes(item.id)}">
-                            <td class="text-center"><input type="checkbox" :value="item.id" v-model="selectedItems" class="rounded"></td>
-                            <td><input type="text" v-model="item.department" @blur="updateItem(item.id, { department: item.department })" class="table-input font-medium"></td>
-                            <td><input type="text" v-model="item.handler" @blur="updateItem(item.id, { handler: item.handler })" class="table-input"></td>
-                            <td><input type="text" v-model="item.item_name" @blur="updateItem(item.id, { item_name: item.item_name })" class="table-input font-bold text-slate-800" placeholder="物品名称"></td>
-                            <td class="text-center">
-                                <a v-if="item.purchase_link" :href="item.purchase_link" target="_blank" class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                                </a>
-                                <span v-else class="text-slate-200 text-xs">—</span>
-                            </td>
-                            <td><input type="number" v-model.number="item.quantity" @blur="updateItem(item.id, { quantity: item.quantity })" class="table-input text-center font-mono"></td>
-                            <td><input type="number" v-model.number="item.unit_price" @blur="updateItem(item.id, { unit_price: item.unit_price })" class="table-input text-center text-blue-800 font-bold" placeholder="0.00"></td>
-                            <td class="text-center">
-                                <select v-model="item.status" @change="updateItem(item.id, { status: item.status })" 
-                                        :class="{'text-orange-600': item.status === '待采购', 'text-blue-600': item.status === '已采购', 'text-green-600': item.status === '已到货'}"
-                                        class="table-input font-black text-center text-xs">
-                                    <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
+                        <h3 class="text-sm font-semibold text-slate-900">快捷操作</h3>
+                        <p class="text-xs text-slate-500 mt-1">上传单据、手动新增与导出</p>
+                        <div class="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">
+                            <button @click="$refs.fileInput && $refs.fileInput.click()"
+                                    class="xl:col-span-2 group rounded-xl border border-dashed border-slate-300 bg-slate-50 py-14 text-center hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 ease-in-out">
+                                <div class="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-500 group-hover:text-blue-600 transition-colors duration-200">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M12 11v8m0 0l-3-3m3 3l3-3"/></svg>
+                                </div>
+                                <p class="text-sm font-medium text-slate-700">上传采购单据</p>
+                                <p class="text-xs text-slate-500 mt-1">支持 PDF / 图片，自动识别字段</p>
+                            </button>
+                            <div class="space-y-3">
+                                <button @click="openAddModal" class="w-full h-11 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">手动新增</button>
+                                <button @click="exportExcel" class="w-full h-11 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">导出 EXCEL</button>
+                                <button @click="switchView('execution')" class="w-full h-11 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">进入执行看板</button>
+                                <button @click="switchView('ledger')" class="w-full h-11 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">进入台账明细</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section v-else-if="currentView === 'ledger'" class="h-full min-h-0 flex flex-col gap-4">
+                    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
+                        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                            <div>
+                                <h2 class="text-3xl font-semibold tracking-tight text-slate-900">采购台账</h2>
+                                <p class="mt-1 text-sm text-slate-500">采购明细、审批状态与付款进度的统一视图</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button @click="$refs.fileInput && $refs.fileInput.click()" class="h-10 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">导入单据</button>
+                                <button @click="openAddModal" class="h-10 px-4 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">手动新增</button>
+                                <button @click="exportExcel" class="h-10 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">导出 EXCEL</button>
+                            </div>
+                        </div>
+
+                        <div class="mt-5 flex flex-wrap items-center gap-3">
+                            <div class="relative flex-1 min-w-[260px]">
+                                <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <input v-model="filterKeyword" @keyup.enter="handleFilter" class="toolbar-control w-full pl-10 h-11 border border-slate-300 rounded-lg bg-white text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out" placeholder="搜索流水号 / 部门 / 物品名称...">
+                            </div>
+                            <select v-model="filterStatus" @change="handleFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                                <option value="">采购状态</option>
+                                <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                            </select>
+                            <select v-model="filterDepartment" @change="handleFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                                <option value="">部门筛选</option>
+                                <option v-for="d in departments" :key="d" :value="d">{{ d }}</option>
+                            </select>
+                            <input type="month" v-model="filterMonth" @change="handleFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                            <button @click="handleFilter" class="h-11 px-5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 ease-in-out">搜索</button>
+                            <button @click="clearFilters" class="h-11 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">清空</button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 min-h-0 bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl overflow-hidden flex flex-col">
+                        <div v-if="selectedItems.length > 0" class="px-5 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+                            <span class="text-xs font-semibold text-slate-600">已选 {{ selectedItems.length }} 条</span>
+                            <select v-model="batchEditField" @change="onBatchFieldChange" class="h-8 py-0 px-2 text-[11px] bg-white border border-slate-300 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                                <option value="">批量修改字段...</option>
+                                <option value="status">采购状态</option>
+                                <option value="payment_status">付款状态</option>
+                            </select>
+                            <select
+                                v-if="batchEditField === 'status'"
+                                v-model="batchEditValue"
+                                class="h-8 py-0 px-2 text-[11px] bg-white border border-slate-300 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out"
+                            >
+                                <option value="">选择采购状态...</option>
+                                <option v-for="s in statuses" :key="`batch-s-${s}`" :value="s">{{ s }}</option>
+                            </select>
+                            <select
+                                v-if="batchEditField === 'payment_status'"
+                                v-model="batchEditValue"
+                                class="h-8 py-0 px-2 text-[11px] bg-white border border-slate-300 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out"
+                            >
+                                <option value="">选择付款状态...</option>
+                                <option v-for="p in paymentStatuses" :key="`batch-p-${p}`" :value="p">{{ p }}</option>
+                            </select>
+                            <button @click="batchUpdate" v-if="batchEditField" class="h-8 px-4 rounded-md bg-blue-600 text-white text-[11px] font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">应用修改</button>
+                            <button @click="batchDelete" class="h-8 px-4 rounded-md bg-white border border-rose-200 text-rose-600 text-[11px] font-semibold ml-auto hover:bg-rose-50 transition-all duration-200 ease-in-out">批量删除</button>
+                        </div>
+
+                        <div class="table-container flex-1 overflow-auto">
+                            <table v-if="items.length > 0" class="w-full text-sm text-slate-700 records-table">
+                                <thead class="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
+                                    <tr class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        <th class="w-12 text-center px-3 py-3"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" class="rounded text-blue-600 focus:ring-blue-500/40"></th>
+                                        <th class="w-36 px-3 py-3">流水号</th>
+                                        <th class="w-28 px-3 py-3">部门</th>
+                                        <th class="w-24 px-3 py-3">经办人</th>
+                                        <th class="w-[22rem] px-3 py-3">物品规格与名称</th>
+                                        <th class="w-16 text-center px-3 py-3">链接</th>
+                                        <th class="w-20 text-center px-3 py-3">数量</th>
+                                        <th class="w-24 text-center px-3 py-3">单价(¥)</th>
+                                        <th class="w-32 text-center px-3 py-3">状态</th>
+                                        <th class="w-32 text-center px-3 py-3">到货日期</th>
+                                        <th class="w-40 px-3 py-3">分发对象</th>
+                                        <th class="w-32 text-center px-3 py-3">分发日期</th>
+                                        <th class="w-48 px-3 py-3">签收备注</th>
+                                        <th class="w-16 text-center px-3 py-3">发票</th>
+                                        <th class="w-32 text-center px-3 py-3">付款进度</th>
+                                        <th class="w-16 text-center px-3 py-3">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <tr v-for="item in items" :key="item.id" :class="{'bg-slate-100/70': selectedItems.includes(item.id)}" class="hover:bg-slate-50 transition-colors duration-200 ease-in-out">
+                                        <td class="text-center px-2 py-4"><input type="checkbox" :value="item.id" v-model="selectedItems" class="rounded text-blue-600 focus:ring-blue-500/40"></td>
+                                        <td class="py-4"><input type="text" v-model="item.serial_number" @blur="updateItem(item.id, { serial_number: item.serial_number })" :placeholder="item.id ? `REC-${item.id}` : '自动生成'" class="table-input font-mono text-[12px] text-slate-500 tracking-tight"></td>
+                                        <td class="py-4"><input type="text" v-model="item.department" @blur="updateItem(item.id, { department: item.department })" class="table-input font-medium text-slate-500"></td>
+                                        <td class="py-4"><input type="text" v-model="item.handler" @blur="updateItem(item.id, { handler: item.handler })" class="table-input text-slate-500"></td>
+                                        <td class="py-4 max-w-[22rem]">
+                                            <input type="text" v-model="item.item_name" @blur="updateItem(item.id, { item_name: item.item_name })" :title="item.item_name || ''" class="table-input font-medium text-slate-700 truncate" placeholder="物品名称">
+                                        </td>
+                                        <td class="text-center py-4">
+                                            <a v-if="item.purchase_link" :href="item.purchase_link" target="_blank" class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-50 transition-colors duration-200">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                            </a>
+                                            <span v-else class="text-slate-200 text-xs">—</span>
+                                        </td>
+                                        <td class="py-4 text-center">
+                                            <div v-if="isInlineEditing(item.id, 'quantity')" class="inline-flex">
+                                                <input
+                                                    :ref="(el) => setInlineEditRef(item.id, 'quantity', el)"
+                                                    type="number"
+                                                    v-model.number="item.quantity"
+                                                    @keydown.enter.prevent="commitInlineEdit(item, 'quantity')"
+                                                    @keydown.esc.prevent="cancelInlineEdit"
+                                                    @blur="commitInlineEdit(item, 'quantity')"
+                                                    class="h-8 w-20 px-2 text-right text-xs font-mono text-slate-700 bg-white border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                >
+                                            </div>
+                                            <button v-else @click="startInlineEdit(item.id, 'quantity')" type="button" class="group inline-flex items-center gap-1 rounded-md px-2 py-1 hover:bg-slate-100 transition-colors duration-150">
+                                                <span class="font-mono text-slate-700">{{ item.quantity }}</span>
+                                                <svg class="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 group-hover:text-blue-500 transition-all duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 013.536 3.536L12.536 16.536a4 4 0 01-1.789 1.05L8 18l.414-2.747A4 4 0 019.464 13.464z"/>
+                                                </svg>
+                                            </button>
+                                        </td>
+                                        <td class="py-4 text-center">
+                                            <div v-if="isInlineEditing(item.id, 'unit_price')" class="inline-flex">
+                                                <input
+                                                    :ref="(el) => setInlineEditRef(item.id, 'unit_price', el)"
+                                                    type="number"
+                                                    step="0.01"
+                                                    v-model.number="item.unit_price"
+                                                    @keydown.enter.prevent="commitInlineEdit(item, 'unit_price')"
+                                                    @keydown.esc.prevent="cancelInlineEdit"
+                                                    @blur="commitInlineEdit(item, 'unit_price')"
+                                                    class="h-8 w-24 px-2 text-right text-xs font-mono text-slate-700 bg-white border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                >
+                                            </div>
+                                            <button v-else @click="startInlineEdit(item.id, 'unit_price')" type="button" class="group inline-flex items-center gap-1 rounded-md px-2 py-1 hover:bg-slate-100 transition-colors duration-150">
+                                                <span class="font-mono text-slate-700">{{ item.unit_price === null || item.unit_price === undefined ? '-' : formatCurrency(item.unit_price) }}</span>
+                                                <svg class="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 group-hover:text-blue-500 transition-all duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 013.536 3.536L12.536 16.536a4 4 0 01-1.789 1.05L8 18l.414-2.747A4 4 0 019.464 13.464z"/>
+                                                </svg>
+                                            </button>
+                                        </td>
+                                        <td class="text-center py-4">
+                                            <select v-model="item.status" @change="updateItem(item.id, { status: item.status })"
+                                                    :class="{
+                                                        'bg-yellow-50 text-yellow-800 ring-1 ring-inset ring-yellow-600/20': item.status === '待采购',
+                                                        'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-700/10': item.status === '已下单',
+                                                        'bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-700/10': item.status === '待到货',
+                                                        'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-700/10': item.status === '待分发',
+                                                        'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20': item.status === '已分发',
+                                                        'bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-600/20': !['待采购', '已下单', '待到货', '待分发', '已分发'].includes(item.status)
+                                                    }"
+                                                    class="inline-flex items-center min-w-[84px] px-2 py-0.5 text-xs font-medium rounded-md border-0 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors duration-200">
+                                                <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                                            </select>
+                                        </td>
+                                        <td class="py-4 text-center">
+                                            <input
+                                                type="date"
+                                                v-model="item.arrival_date"
+                                                @change="updateItem(item.id, { arrival_date: item.arrival_date })"
+                                                class="table-input text-xs text-slate-500 text-center"
+                                            >
+                                        </td>
+                                        <td class="py-4">
+                                            <input
+                                                type="text"
+                                                v-model="item.recipient"
+                                                @blur="updateItem(item.id, { recipient: item.recipient })"
+                                                class="table-input text-slate-500"
+                                                placeholder="分发对象"
+                                            >
+                                        </td>
+                                        <td class="py-4 text-center">
+                                            <input
+                                                type="date"
+                                                v-model="item.distribution_date"
+                                                @change="updateItem(item.id, { distribution_date: item.distribution_date })"
+                                                class="table-input text-xs text-slate-500 text-center"
+                                            >
+                                        </td>
+                                        <td class="py-4 max-w-[12rem]">
+                                            <input
+                                                type="text"
+                                                v-model="item.signoff_note"
+                                                @blur="updateItem(item.id, { signoff_note: item.signoff_note })"
+                                                :title="item.signoff_note || ''"
+                                                class="table-input text-slate-500 truncate"
+                                                placeholder="签收备注"
+                                            >
+                                        </td>
+                                        <td class="text-center py-4">
+                                            <button @click="toggleInvoice(item)"
+                                                    :class="item.invoice_issued ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' : 'bg-yellow-50 text-yellow-800 ring-1 ring-inset ring-yellow-600/20'"
+                                                    class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md transition-colors duration-200">
+                                                {{ item.invoice_issued ? '已入账' : '待报' }}
+                                            </button>
+                                        </td>
+                                        <td class="py-4">
+                                            <select v-model="item.payment_status" @change="updateItem(item.id, { payment_status: item.payment_status })"
+                                                    :class="{
+                                                        'bg-yellow-50 text-yellow-800 ring-1 ring-inset ring-yellow-600/20': item.payment_status === '未付款',
+                                                        'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-700/10': item.payment_status === '已付款',
+                                                        'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20': item.payment_status === '已报销',
+                                                        'bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-600/20': item.payment_status !== '未付款' && item.payment_status !== '已付款' && item.payment_status !== '已报销'
+                                                    }"
+                                                    class="inline-flex items-center min-w-[84px] px-2 py-0.5 text-xs font-medium rounded-md border-0 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors duration-200">
+                                                <option v-for="p in paymentStatuses" :key="p" :value="p">{{ p }}</option>
+                                            </select>
+                                        </td>
+                                        <td class="text-center py-4">
+                                            <button @click="deleteItem(item.id)" class="text-slate-400 hover:text-red-600 p-1 transition-colors duration-200"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div v-if="items.length === 0" class="flex flex-col items-center justify-center py-24 px-6 text-center">
+                                <div class="inline-flex h-14 w-14 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+                                    <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7.5A2.5 2.5 0 015.5 5h13A2.5 2.5 0 0121 7.5v9A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9zM8 9h8M8 12h8M8 15h5"/>
+                                    </svg>
+                                </div>
+                                <p class="mt-4 text-base font-semibold text-slate-700">暂无采购数据</p>
+                                <p class="mt-1 text-sm text-slate-500">请点击上方“手动新增”或“导入单据”开始录入</p>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-slate-50 border-t border-slate-200 flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-4 justify-between">
+                            <div class="text-xs text-slate-600">
+                                显示 <span class="font-semibold text-slate-900">{{ pageRangeStart }}</span>-<span class="font-semibold text-slate-900">{{ pageRangeEnd }}</span> / <span class="font-semibold text-slate-900">{{ totalItems }}</span> 条
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <label class="text-xs text-slate-500">每页</label>
+                                <select v-model.number="pageSize" @change="changePageSize" class="h-9 px-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                    <option v-for="size in pageSizeOptions" :key="`size-${size}`" :value="size">{{ size }}</option>
                                 </select>
-                            </td>
-                            <td class="text-center">
-                                <button @click="toggleInvoice(item)" 
-                                        :class="item.invoice_issued ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200'"
-                                        class="px-2 py-0.5 rounded border text-[9px] font-black transition-all">
-                                    {{ item.invoice_issued ? '已入账' : '待报' }}
-                                </button>
-                            </td>
-                            <td>
-                                <select v-model="item.payment_status" @change="updateItem(item.id, { payment_status: item.payment_status })" class="table-input text-[11px] text-center font-bold">
-                                    <option v-for="p in paymentStatuses" :key="p" :value="p">{{ p }}</option>
-                                </select>
-                            </td>
-                            <td class="text-center">
-                                <button @click="deleteItem(item.id)" class="text-slate-300 hover:text-red-600 p-1 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                                <div class="w-px h-5 bg-slate-300 mx-1"></div>
+                                <button @click="goToPage(currentPage - 1)" :disabled="currentPage <= 1" class="h-9 px-3 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors duration-200">上一页</button>
+                                <template v-for="(token, idx) in pageTokens" :key="`pt-${idx}-${token}`">
+                                    <span v-if="token === 'ellipsis'" class="h-9 px-2 inline-flex items-center text-slate-400">…</span>
+                                    <button v-else @click="goToPage(token)" :class="token === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'" class="h-9 min-w-[36px] px-2 border rounded-lg text-xs font-medium transition-colors duration-200">{{ token }}</button>
+                                </template>
+                                <button @click="goToPage(currentPage + 1)" :disabled="currentPage >= totalPages" class="h-9 px-3 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors duration-200">下一页</button>
+                                <div class="w-px h-5 bg-slate-300 mx-1"></div>
+                                <input v-model.number="jumpPage" @keyup.enter="jumpToPage" type="number" min="1" :max="totalPages" class="h-9 w-20 px-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="页码">
+                                <button @click="jumpToPage" class="h-9 px-3 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors duration-200">跳转</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-            <div class="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Page {{ currentPage }} of {{ totalPages }} / Records: {{ totalItems }}</div>
-                <div class="flex items-center gap-2">
-                    <button @click="goToPage(currentPage - 1)" :disabled="currentPage <= 1" class="h-9 px-4 bg-white border border-slate-200 rounded-lg text-[11px] font-bold disabled:opacity-50">上一页</button>
-                    <div class="w-9 h-9 flex items-center justify-center rounded-lg bg-blue-900 text-white text-[11px] font-bold">{{ currentPage }}</div>
-                    <button @click="goToPage(currentPage + 1)" :disabled="currentPage >= totalPages" class="h-9 px-4 bg-white border border-slate-200 rounded-lg text-[11px] font-bold disabled:opacity-50">下一页</button>
-                </div>
-            </div>
+                <section v-else-if="currentView === 'execution'" class="h-full min-h-0 flex flex-col gap-4">
+                    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
+                        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                            <div>
+                                <h2 class="text-3xl font-semibold tracking-tight text-slate-900">采购执行看板</h2>
+                                <p class="mt-1 text-sm text-slate-500">按执行流程分栏管理：待采购、已下单、待到货、待分发</p>
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                执行中记录：<span class="font-semibold text-slate-800">{{ executionBoard.total || 0 }}</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-5 flex flex-wrap items-center gap-3">
+                            <div class="relative flex-1 min-w-[280px]">
+                                <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <input v-model="boardKeyword" @keyup.enter="applyExecutionFilter" class="toolbar-control w-full pl-10 h-11 border border-slate-300 rounded-lg bg-white text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out" placeholder="搜索流水号 / 部门 / 物品名称...">
+                            </div>
+                            <select v-model="boardDepartment" @change="applyExecutionFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                                <option value="">全部部门</option>
+                                <option v-for="d in departments" :key="`exec-d-${d}`" :value="d">{{ d }}</option>
+                            </select>
+                            <input type="month" v-model="boardMonth" @change="applyExecutionFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                            <select v-model.number="executionBoard.limit_per_status" @change="applyExecutionFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                                <option :value="40">每栏 40 条</option>
+                                <option :value="80">每栏 80 条</option>
+                                <option :value="120">每栏 120 条</option>
+                            </select>
+                            <button @click="applyExecutionFilter" :disabled="executionLoading" class="h-11 px-5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ease-in-out">刷新</button>
+                            <button @click="clearExecutionFilter" :disabled="executionLoading" class="h-11 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ease-in-out">清空</button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 min-h-0 overflow-auto pr-1">
+                        <div v-if="executionLoading" class="h-full min-h-[360px] flex flex-col items-center justify-center text-slate-500">
+                            <svg class="w-6 h-6 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
+                                <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+                            </svg>
+                            <p class="mt-3 text-sm font-medium">执行看板加载中...</p>
+                        </div>
+                        <div v-else class="grid grid-cols-1 xl:grid-cols-4 gap-4 min-h-full">
+                            <div
+                                v-for="column in executionBoard.columns"
+                                :key="column.key"
+                                class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl min-h-0 flex flex-col"
+                            >
+                                <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                                    <span
+                                        :class="{
+                                            'bg-yellow-50 text-yellow-800 ring-yellow-600/20': column.key === 'pending_purchase',
+                                            'bg-blue-50 text-blue-700 ring-blue-700/10': column.key === 'ordered',
+                                            'bg-cyan-50 text-cyan-700 ring-cyan-700/10': column.key === 'pending_arrival',
+                                            'bg-indigo-50 text-indigo-700 ring-indigo-700/10': column.key === 'pending_distribution'
+                                        }"
+                                        class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ring-1 ring-inset"
+                                    >
+                                        {{ column.label }}
+                                    </span>
+                                    <span class="text-xs font-semibold text-slate-500">{{ column.count }}</span>
+                                </div>
+                                <div class="flex-1 overflow-y-auto p-3 space-y-3">
+                                    <div
+                                        v-for="item in column.items"
+                                        :key="item.id"
+                                        class="rounded-lg border border-slate-200 bg-white p-3 space-y-2"
+                                    >
+                                        <div class="flex items-start justify-between gap-2">
+                                            <div class="min-w-0">
+                                                <div class="text-[11px] font-semibold text-slate-700 font-mono truncate" :title="item.serial_number || ''">{{ item.serial_number || '-' }}</div>
+                                                <div class="text-[11px] text-slate-500 truncate">{{ item.department || '未分配部门' }} · {{ item.handler || '未登记经办人' }}</div>
+                                            </div>
+                                            <a v-if="item.purchase_link" :href="item.purchase_link" target="_blank" class="inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-50 transition-colors duration-200">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                            </a>
+                                        </div>
+                                        <div class="text-sm font-medium text-slate-800 leading-snug truncate" :title="item.item_name || ''">{{ item.item_name || '未命名物品' }}</div>
+                                        <div class="text-[11px] text-slate-500 flex items-center justify-between gap-2">
+                                            <span>申请日 {{ item.request_date || '-' }}</span>
+                                            <span class="font-mono">x{{ item.quantity }}</span>
+                                        </div>
+
+                                        <div v-if="column.key === 'pending_purchase'" class="pt-1">
+                                            <button @click="moveToOrdered(item)" class="w-full h-8 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">一键流转至已下单</button>
+                                        </div>
+
+                                        <div v-else-if="column.key === 'ordered'" class="pt-1">
+                                            <button @click="moveToPendingArrival(item)" class="w-full h-8 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">一键流转至待到货</button>
+                                        </div>
+
+                                        <div v-else-if="column.key === 'pending_arrival'" class="pt-1 space-y-2">
+                                            <input type="date" v-model="item.arrival_date" class="w-full h-8 px-2 border border-slate-300 rounded-md text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                                            <button @click="markArrived(item)" class="w-full h-8 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">确认到货并流转</button>
+                                        </div>
+
+                                        <div v-else-if="column.key === 'pending_distribution'" class="pt-1 space-y-2">
+                                            <input type="text" v-model="item.recipient" placeholder="分发对象（必填）" class="w-full h-8 px-2 border border-slate-300 rounded-md text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                                            <input type="date" v-model="item.distribution_date" class="w-full h-8 px-2 border border-slate-300 rounded-md text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                                            <input type="text" v-model="item.signoff_note" placeholder="签收备注（可选）" class="w-full h-8 px-2 border border-slate-300 rounded-md text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                                            <button @click="completeDistribution(item)" class="w-full h-8 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">完成分发闭环</button>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="!column.items || !column.items.length" class="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 py-8 text-center text-xs text-slate-500">
+                                        当前列暂无记录
+                                    </div>
+                                </div>
+                                <div v-if="column.count > (column.items ? column.items.length : 0)" class="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
+                                    仅展示前 {{ column.items ? column.items.length : 0 }} 条，请收窄筛选条件
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section v-else-if="currentView === 'reports'" class="h-full min-h-0 flex flex-col gap-4">
+                    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
+                        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                            <div>
+                                <h2 class="text-3xl font-semibold tracking-tight text-slate-900">统计报表</h2>
+                                <p class="mt-1 text-sm text-slate-500">采购成本与费用分布的可视化统计页面</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button @click="loadAmountReport" :disabled="amountReportLoading" class="h-10 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ease-in-out">{{ amountReportLoading ? '加载中...' : '刷新数据' }}</button>
+                                <button @click="exportExcel" class="h-10 px-4 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all duration-200 ease-in-out">导出EXCEL</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 min-h-0 bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6 overflow-auto">
+                        <div v-if="amountReportLoading" class="h-full min-h-[280px] flex flex-col items-center justify-center text-slate-500">
+                            <svg class="w-6 h-6 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
+                                <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+                            </svg>
+                            <p class="mt-3 text-sm font-medium">统计数据加载中...</p>
+                        </div>
+                        <div v-else>
+                            <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                                    <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">当前费用总计</div>
+                                    <div class="text-2xl font-bold text-slate-900 font-mono">¥ {{ formatCurrency(amountReport.summary.total_amount) }}</div>
+                                </div>
+                                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                                    <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">已计价金额</div>
+                                    <div class="text-2xl font-bold text-slate-900 font-mono">¥ {{ formatCurrency(amountReport.summary.priced_amount) }}</div>
+                                </div>
+                                <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                                    <div class="text-[10px] font-semibold text-orange-600 uppercase tracking-wide mb-2">单价缺失笔数</div>
+                                    <div class="text-2xl font-bold text-orange-600 font-mono">{{ amountReport.summary.missing_price_records }}</div>
+                                </div>
+                            </div>
+
+                            <div v-if="!amountReport.summary.total_records" class="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 py-16 text-center">
+                                <p class="text-sm font-medium text-slate-600">暂无可统计数据</p>
+                                <p class="mt-1 text-xs text-slate-500">请先在台账页录入或导入采购记录</p>
+                            </div>
+
+                            <div class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                <div class="border border-slate-200 rounded-xl p-4">
+                                    <h4 class="text-sm font-semibold text-slate-800">部门支出排行</h4>
+                                    <div class="mt-4 max-h-[420px] overflow-y-auto space-y-2">
+                                        <div v-for="row in amountReport.by_department" :key="row.department" class="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                            <span class="text-sm font-medium text-slate-700">{{ row.department || '未分类' }}</span>
+                                            <span class="text-sm font-semibold font-mono text-blue-700">¥ {{ formatCurrency(row.total_amount) }}</span>
+                                        </div>
+                                        <div v-if="!amountReport.by_department.length" class="py-10 text-center text-xs text-slate-500">暂无部门统计</div>
+                                    </div>
+                                </div>
+
+                                <div class="border border-slate-200 rounded-xl p-4">
+                                    <h4 class="text-sm font-semibold text-slate-800">状态分布概览</h4>
+                                    <div class="mt-4 max-h-[420px] overflow-y-auto space-y-2">
+                                        <div v-for="row in amountReport.by_status" :key="row.status" class="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                            <span class="text-sm font-medium text-slate-700">{{ row.status }}</span>
+                                            <span class="text-sm font-semibold font-mono text-orange-600">¥ {{ formatCurrency(row.total_amount) }}</span>
+                                        </div>
+                                        <div v-if="!amountReport.by_status.length" class="py-10 text-center text-xs text-slate-500">暂无状态统计</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section v-else-if="currentView === 'audit'" class="h-full min-h-0 flex flex-col gap-4">
+                    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
+                        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                            <div>
+                                <h2 class="text-3xl font-semibold tracking-tight text-slate-900">审计日志</h2>
+                                <p class="mt-1 text-sm text-slate-500">系统操作与字段变更的可追踪记录</p>
+                            </div>
+                            <button @click="loadHistory" :disabled="historyLoading" class="h-10 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ease-in-out">{{ historyLoading ? '加载中...' : '刷新日志' }}</button>
+                        </div>
+
+                        <div class="mt-5 flex flex-wrap items-center gap-3">
+                            <input v-model="historyKeyword" @keyup.enter="applyHistoryFilter" class="toolbar-control flex-1 min-w-[240px] h-11 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out" placeholder="搜索审计项目 / 关键字...">
+                            <select v-model="historyAction" @change="applyHistoryFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                                <option value="">所有审计动作</option>
+                                <option value="create">创建记录</option>
+                                <option value="update">字段变更</option>
+                                <option value="delete">数据删除</option>
+                            </select>
+                            <input type="month" v-model="historyMonth" @change="applyHistoryFilter" class="h-11 px-3 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 ease-in-out">
+                            <button @click="applyHistoryFilter" :disabled="historyLoading" class="h-11 px-5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ease-in-out">查询</button>
+                            <button @click="clearHistoryFilters" :disabled="historyLoading" class="h-11 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ease-in-out">清空</button>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 min-h-0 bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl overflow-hidden flex flex-col">
+                        <div class="flex-1 overflow-auto">
+                            <table class="w-full text-sm border-b border-slate-200">
+                                <thead class="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
+                                    <tr class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        <th class="px-4 py-3 text-left w-44">时间戳</th>
+                                        <th class="px-4 py-3 text-left w-28">操作类型</th>
+                                        <th class="px-4 py-3 text-left w-56">关联项目</th>
+                                        <th class="px-4 py-3 text-left">变更详情</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <tr v-if="historyLoading">
+                                        <td colspan="4" class="py-16 text-center text-sm text-slate-500">日志加载中...</td>
+                                    </tr>
+                                    <template v-else>
+                                        <tr v-for="row in historyItems" :key="row.id" class="hover:bg-slate-50">
+                                            <td class="px-4 py-3.5 text-xs text-slate-700 font-medium font-mono">{{ row.created_at }}</td>
+                                            <td class="px-4 py-3.5">
+                                                <span
+                                                    :class="{
+                                                        'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20': row.action==='create',
+                                                        'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-700/10': row.action==='update',
+                                                        'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20': row.action==='delete'
+                                                    }"
+                                                    class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold"
+                                                >
+                                                    {{ row.action === 'create' ? '新增' : (row.action === 'update' ? '变更' : '删除') }}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-3.5 text-sm font-medium text-slate-800">{{ row.item_name || '系统默认' }}</td>
+                                            <td class="px-4 py-3.5 text-sm text-slate-600">{{ historyDetailText(row) }}</td>
+                                        </tr>
+                                        <tr v-if="!historyItems.length">
+                                            <td colspan="4" class="py-16 text-center text-sm text-slate-500">暂无审计日志</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                            <div class="text-xs text-slate-600">
+                                第 <span class="font-semibold text-slate-900">{{ historyPage }}</span> / <span class="font-semibold text-slate-900">{{ historyTotalPages }}</span> 页
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="goHistoryPage(historyPage - 1)" :disabled="historyLoading || historyPage <= 1" class="h-9 px-3 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors duration-200">上一页</button>
+                                <button @click="goHistoryPage(historyPage + 1)" :disabled="historyLoading || historyPage >= historyTotalPages" class="h-9 px-3 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors duration-200">下一页</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
         </div>
 
         <!-- 弹窗：手动录入 -->
@@ -183,40 +650,40 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div class="col-span-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">流水号（可空，自动生成）</label>
-                            <input v-model="newItem.serial_number" placeholder="如: REQ-2026001（留空自动生成）" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none font-mono">
+                            <input v-model="newItem.serial_number" placeholder="如: REQ-2026001（留空自动生成）" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out font-mono">
                         </div>
                         <div class="col-span-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">申请日期</label>
-                            <input v-model="newItem.request_date" type="date" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
+                            <input v-model="newItem.request_date" type="date" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                         <div class="col-span-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">申领部门</label>
-                            <input v-model="newItem.department" list="department-options" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
+                            <input v-model="newItem.department" list="department-options" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                         <div class="col-span-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">经办人</label>
-                            <input v-model="newItem.handler" list="handler-options" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
+                            <input v-model="newItem.handler" list="handler-options" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                         <div class="col-span-2">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">物品/服务名称</label>
-                            <input v-model="newItem.item_name" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:border-blue-500 outline-none">
+                            <input v-model="newItem.item_name" required class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">数量</label>
-                            <input v-model.number="newItem.quantity" type="number" required step="0.1" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm font-mono outline-none">
+                            <input v-model.number="newItem.quantity" type="number" required step="0.1" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">单价 (¥)</label>
-                            <input v-model.number="newItem.unit_price" type="number" step="0.01" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm font-mono outline-none">
+                            <input v-model.number="newItem.unit_price" type="number" step="0.01" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                         <div class="col-span-2">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">采购链接 (URL)</label>
-                            <input v-model="newItem.purchase_link" type="url" placeholder="https://..." class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm font-mono outline-none">
+                            <input v-model="newItem.purchase_link" type="url" placeholder="https://..." class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                     </div>
                     <div class="flex gap-3 pt-4">
-                        <button type="button" @click="closeAddModal" class="btn-base btn-secondary flex-1 font-bold">取消</button>
-                        <button type="submit" class="btn-base btn-primary flex-1 font-bold">提交入库</button>
+                        <button type="button" @click="closeAddModal" class="btn-base !bg-white !border !border-slate-300 !text-slate-700 hover:!bg-slate-50 hover:!border-slate-400 flex-1 font-bold transition-all duration-200 ease-in-out">取消</button>
+                        <button type="submit" class="btn-base !bg-blue-600 !border !border-blue-600 !text-white hover:!bg-blue-700 hover:!border-blue-700 flex-1 font-bold transition-all duration-200 ease-in-out">提交入库</button>
                     </div>
                 </form>
             </div>
@@ -227,34 +694,34 @@
             <div class="modal-panel w-full max-w-2xl">
                 <div class="modal-header flex justify-between items-center">
                     <h3 class="modal-title">WebDAV 云端同步管理</h3>
-                    <button @click="closeWebdavModal" class="text-slate-400 hover:text-blue-900 font-bold">&times;</button>
+                    <button @click="closeWebdavModal" class="text-slate-400 hover:text-blue-700 font-bold transition-all duration-200 ease-in-out">&times;</button>
                 </div>
                 <div class="p-6 space-y-6">
                     <div class="grid grid-cols-2 gap-4">
                         <div class="col-span-2">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">服务器地址</label>
-                            <input v-model="webdavConfig.base_url" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-xs font-mono" placeholder="https://example.com/dav">
+                            <input v-model="webdavConfig.base_url" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out" placeholder="https://example.com/dav">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">用户名</label>
-                            <input v-model="webdavConfig.username" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm">
+                            <input v-model="webdavConfig.username" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">授权密码</label>
-                            <input v-model="webdavConfig.password" type="password" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm" :placeholder="webdavConfig.has_password ? '********' : 'Password'">
+                            <input v-model="webdavConfig.password" type="password" class="h-10 px-3 w-full border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out" :placeholder="webdavConfig.has_password ? '********' : 'Password'">
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <button @click="saveWebdavConfig" class="btn-base btn-secondary text-[11px] font-bold">保存配置</button>
-                        <button @click="testWebdavConnection" class="btn-base btn-soft text-[11px] font-bold">测试连接</button>
-                        <button @click="uploadBackupToWebdav" class="btn-base btn-primary text-[11px] font-bold ml-auto">立即上传备份</button>
+                        <button @click="saveWebdavConfig" class="btn-base !bg-white !border !border-slate-300 !text-slate-700 hover:!bg-slate-50 hover:!border-slate-400 text-[11px] font-bold transition-all duration-200 ease-in-out">保存配置</button>
+                        <button @click="testWebdavConnection" class="btn-base !bg-white !border !border-slate-300 !text-slate-700 hover:!bg-slate-50 hover:!border-slate-400 text-[11px] font-bold transition-all duration-200 ease-in-out">测试连接</button>
+                        <button @click="uploadBackupToWebdav" class="btn-base !bg-blue-600 !border !border-blue-600 !text-white hover:!bg-blue-700 hover:!border-blue-700 text-[11px] font-bold ml-auto transition-all duration-200 ease-in-out">立即上传备份</button>
                     </div>
                     <div class="border border-slate-200 rounded-lg overflow-hidden">
                         <div class="bg-slate-50 px-4 py-2 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">远端备份文件列表</div>
                         <div class="max-h-48 overflow-y-auto p-2 space-y-1">
                             <div v-for="file in webdavBackups" :key="file.name" class="flex items-center justify-between p-2 hover:bg-slate-50 rounded transition-colors">
                                 <span class="text-xs font-mono font-medium text-slate-600">{{ file.name }}</span>
-                                <button @click="restoreFromWebdav(file.name)" class="text-blue-600 hover:text-blue-800 text-[10px] font-bold">恢复此备份</button>
+                                <button @click="restoreFromWebdav(file.name)" class="text-blue-600 hover:text-blue-800 text-[10px] font-bold transition-all duration-200 ease-in-out">恢复此备份</button>
                             </div>
                             <div v-if="!webdavBackups.length" class="text-center py-8 text-slate-300 font-mono text-xs uppercase">没有找到云端备份</div>
                         </div>
@@ -292,7 +759,7 @@
                                     <td class="p-2"><input v-model.number="row.quantity" type="number" class="w-full text-center border-none font-mono font-bold"></td>
                                     <td class="p-2"><input v-model="row.purchase_link" class="w-full text-[10px] text-slate-400 border-none px-2 py-1 font-mono"></td>
                                     <td class="p-2 text-center">
-                                        <button @click="removePreviewItem(idx)" class="text-slate-300 hover:text-red-500 font-bold text-lg">&times;</button>
+                                        <button @click="removePreviewItem(idx)" class="text-slate-300 hover:text-red-500 font-bold text-lg transition-all duration-200 ease-in-out">&times;</button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -301,8 +768,8 @@
                     <button @click="addPreviewItem" class="w-full py-3 border border-dashed border-slate-300 text-slate-400 hover:text-blue-900 hover:border-blue-400 transition-all text-[11px] font-bold uppercase tracking-widest">+ 补充新行</button>
                 </div>
                 <div class="p-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
-                    <button @click="closeImportPreview" class="btn-base btn-secondary font-bold">取消</button>
-                    <button @click="submitImport()" :disabled="importSubmitting" class="btn-base btn-primary px-10 font-bold">
+                    <button @click="closeImportPreview" class="btn-base !bg-white !border !border-slate-300 !text-slate-700 hover:!bg-slate-50 hover:!border-slate-400 font-bold transition-all duration-200 ease-in-out">取消</button>
+                    <button @click="submitImport()" :disabled="importSubmitting" class="btn-base !bg-blue-600 !border !border-blue-600 !text-white hover:!bg-blue-700 hover:!border-blue-700 px-10 font-bold transition-all duration-200 ease-in-out">
                         {{ importSubmitting ? '正在入库...' : '核对完成，确认入库' }}
                     </button>
                 </div>
@@ -324,110 +791,38 @@
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <button @click="handleDuplicates('skip')" class="btn-base btn-secondary font-bold text-xs py-3">跳过重复项</button>
-                        <button @click="handleDuplicates('merge')" class="btn-base btn-soft font-bold text-xs py-3">合并数量</button>
-                        <button @click="handleDuplicates('add')" class="btn-base btn-primary col-span-2 font-bold text-xs py-3">作为新记录全部添加</button>
+                        <button @click="handleDuplicates('skip')" class="btn-base !bg-white !border !border-slate-300 !text-slate-700 hover:!bg-slate-50 hover:!border-slate-400 font-bold text-xs py-3 transition-all duration-200 ease-in-out">跳过重复项</button>
+                        <button @click="handleDuplicates('merge')" class="btn-base !bg-white !border !border-slate-300 !text-slate-700 hover:!bg-slate-50 hover:!border-slate-400 font-bold text-xs py-3 transition-all duration-200 ease-in-out">合并数量</button>
+                        <button @click="handleDuplicates('add')" class="btn-base !bg-blue-600 !border !border-blue-600 !text-white hover:!bg-blue-700 hover:!border-blue-700 col-span-2 font-bold text-xs py-3 transition-all duration-200 ease-in-out">新增非重复项（跳过重复）</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 弹窗：金额分析 -->
-        <div v-if="showAmountReportModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4">
-            <div class="modal-panel w-full max-w-4xl max-h-[85vh] flex flex-col">
-                <div class="modal-header flex justify-between items-center">
-                    <h3 class="modal-title">采购成本与费用分析报表</h3>
-                    <button @click="closeAmountReportModal" class="text-slate-400 hover:text-blue-900 font-bold">&times;</button>
+        <div
+            v-if="confirmModalVisible"
+            class="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4"
+            @click.self="cancelConfirmDialog"
+        >
+            <div class="w-full max-w-md bg-white rounded-xl shadow-xl ring-1 ring-slate-900/10 overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-200">
+                    <h3 class="text-base font-semibold text-slate-900">{{ confirmModalTitle }}</h3>
+                    <p class="mt-2 text-sm text-slate-600 leading-relaxed">{{ confirmModalMessage }}</p>
                 </div>
-                <div class="p-6 overflow-y-auto space-y-6">
-                    <div class="grid grid-cols-3 gap-4">
-                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
-                            <div class="text-[10px] font-bold text-slate-400 uppercase mb-2">当前费用总计</div>
-                            <div class="text-2xl font-black text-slate-900 font-mono">¥ {{ formatCurrency(amountReport.summary.total_amount) }}</div>
-                        </div>
-                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
-                            <div class="text-[10px] font-bold text-slate-400 uppercase mb-2">已入账记录</div>
-                            <div class="text-2xl font-black text-slate-900 font-mono">{{ amountReport.summary.priced_amount_records }}</div>
-                        </div>
-                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-200">
-                            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">单价缺失笔数</div>
-                            <div class="text-2xl font-black text-orange-600 font-mono">{{ amountReport.summary.missing_price_records }}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-6">
-                        <div class="space-y-4">
-                            <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-l-4 border-blue-900 pl-3">部门支出排行</h4>
-                            <div class="max-h-60 overflow-y-auto space-y-2 border border-slate-100 p-2 rounded-lg">
-                                <div v-for="row in amountReport.by_department" :key="row.department" class="flex justify-between items-center p-3 bg-white border border-slate-100 rounded shadow-sm">
-                                    <span class="text-xs font-bold text-slate-700">{{ row.department || '未分类' }}</span>
-                                    <span class="text-xs font-bold font-mono text-blue-900">¥ {{ formatCurrency(row.total_amount) }}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="space-y-4">
-                            <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest border-l-4 border-orange-500 pl-3">状态分布概览</h4>
-                            <div class="max-h-60 overflow-y-auto space-y-2 border border-slate-100 p-2 rounded-lg">
-                                <div v-for="row in amountReport.by_status" :key="row.status" class="flex justify-between items-center p-3 bg-white border border-slate-100 rounded shadow-sm">
-                                    <span class="text-xs font-bold text-slate-700">{{ row.status }}</span>
-                                    <span class="text-xs font-bold font-mono text-orange-600">¥ {{ formatCurrency(row.total_amount) }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-                    <button @click="closeAmountReportModal" class="btn-base btn-primary px-8 font-bold">导出 PDF 存档</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 弹窗：审计日志 -->
-        <div v-if="showHistoryModal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4">
-            <div class="modal-panel w-full max-w-6xl max-h-[90vh] flex flex-col">
-                <div class="modal-header flex justify-between items-center">
-                    <h3 class="modal-title">系统操作与变更审计日志</h3>
-                    <button @click="closeHistoryModal" class="text-slate-400 hover:text-blue-900 font-bold">&times;</button>
-                </div>
-                <div class="p-4 bg-slate-50 border-b border-slate-200 flex gap-3">
-                    <input v-model="historyKeyword" @keyup.enter="applyHistoryFilter" class="toolbar-control flex-1 h-10 border-slate-200 rounded-lg text-sm" placeholder="搜索历史流水记录...">
-                    <select v-model="historyAction" @change="applyHistoryFilter" class="h-10 px-4 bg-white border border-slate-200 rounded-lg text-sm font-bold">
-                        <option value="">所有审计动作</option>
-                        <option value="create">创建记录</option>
-                        <option value="update">字段变更</option>
-                        <option value="delete">数据删除</option>
-                    </select>
-                    <button @click="applyHistoryFilter" class="btn-base btn-secondary h-10 px-6 font-bold">执行审计查询</button>
-                </div>
-                <div class="flex-1 overflow-auto p-4 bg-white">
-                    <table class="w-full text-[11px] font-medium border border-slate-100">
-                        <thead class="text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
-                            <tr>
-                                <th class="p-3 text-left w-40">时间戳</th>
-                                <th class="p-3 text-left w-24">操作类型</th>
-                                <th class="p-3 text-left">关联项目</th>
-                                <th class="p-3 text-left">变更详情</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-50">
-                            <tr v-for="row in historyItems" :key="row.id" class="hover:bg-blue-50/30">
-                                <td class="p-3 text-slate-400 font-mono">{{ row.created_at }}</td>
-                                <td class="p-3">
-                                    <span :class="{'text-green-600': row.action==='create', 'text-blue-600': row.action==='update', 'text-red-600': row.action==='delete'}" class="font-black uppercase tracking-tighter">
-                                        {{ row.action === 'create' ? '新增' : (row.action === 'update' ? '变更' : '删除') }}
-                                    </span>
-                                </td>
-                                <td class="p-3 text-slate-900 font-bold">{{ row.item_name || '系统默认' }}</td>
-                                <td class="p-3 text-slate-500 italic">{{ historyDetailText(row) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Page {{ historyPage }} of {{ historyTotalPages }}</div>
-                    <div class="flex gap-2">
-                        <button @click="goHistoryPage(historyPage - 1)" :disabled="historyPage <= 1" class="btn-base btn-secondary text-[10px] font-bold py-2">PREV</button>
-                        <button @click="goHistoryPage(historyPage + 1)" :disabled="historyPage >= historyTotalPages" class="btn-base btn-secondary text-[10px] font-bold py-2">NEXT</button>
-                    </div>
+                <div class="px-5 py-4 bg-slate-50 flex justify-end gap-2">
+                    <button
+                        @click="cancelConfirmDialog"
+                        class="h-9 px-4 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out"
+                    >
+                        {{ confirmModalCancelText }}
+                    </button>
+                    <button
+                        @click="acceptConfirmDialog"
+                        :class="confirmModalDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'"
+                        class="h-9 px-4 rounded-lg text-white text-sm font-semibold transition-all duration-200 ease-in-out"
+                    >
+                        {{ confirmModalConfirmText }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -437,6 +832,26 @@
         <datalist id="handler-options">
             <option v-for="name in handlers" :key="`handler-${name}`" :value="name"></option>
         </datalist>
+
+        <div class="fixed top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+            <transition-group name="toast">
+                <div
+                    v-for="toast in toasts"
+                    :key="toast.id"
+                    class="flex items-center w-80 bg-white shadow-xl ring-1 ring-slate-900/5 rounded-lg p-4 pointer-events-auto transition-all duration-300 transform"
+                    :class="toast.type === 'error' ? 'border-l-4 border-red-500' : 'border-l-4 border-emerald-500'"
+                >
+                    <span class="text-sm font-medium text-slate-700 flex-1">{{ toast.message }}</span>
+                    <button
+                        v-if="toast.actionLabel"
+                        @click="triggerToastAction(toast.id)"
+                        class="ml-3 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors duration-200"
+                    >
+                        {{ toast.actionLabel }}
+                    </button>
+                </div>
+            </transition-group>
+        </div>
 
     </div>
     

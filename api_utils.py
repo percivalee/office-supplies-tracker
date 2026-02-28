@@ -9,6 +9,8 @@ from fastapi import HTTPException
 from app_runtime import UPLOAD_DIR
 
 ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".jfif"}
+MAX_DOCUMENT_UPLOAD_BYTES = 30 * 1024 * 1024  # 30MB
+STREAM_CHUNK_SIZE = 1024 * 1024
 
 
 def normalize_month(month: Optional[str]) -> Optional[str]:
@@ -61,3 +63,24 @@ def build_upload_path(filename: str) -> Path:
 
     unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}{extension}"
     return UPLOAD_DIR / unique_name
+
+
+def save_upload_file_with_limit(
+    upload_file,
+    destination: Path,
+    max_bytes: int,
+    file_label: str = "文件",
+) -> int:
+    """流式写入上传文件并限制大小，超限直接中断。"""
+    written = 0
+    limit_mb = max(1, max_bytes // (1024 * 1024))
+    with open(destination, "wb") as buffer:
+        while True:
+            chunk = upload_file.file.read(STREAM_CHUNK_SIZE)
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > max_bytes:
+                raise HTTPException(status_code=413, detail=f"{file_label}过大，最大支持 {limit_mb}MB")
+            buffer.write(chunk)
+    return written

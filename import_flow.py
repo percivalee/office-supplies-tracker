@@ -227,6 +227,7 @@ async def confirm_import_payload(normalized_payload: dict, duplicate_action: Opt
     action = duplicate_action or "add"
     created_ids: list[int] = []
     updated_count = 0
+    skipped_duplicates = 0
     to_insert: list[dict] = []
 
     if action == "skip":
@@ -236,6 +237,7 @@ async def confirm_import_payload(normalized_payload: dict, duplicate_action: Opt
     elif action == "add":
         to_insert = list(items_to_create)
         created_ids = await batch_create_items(to_insert)
+        skipped_duplicates = max(0, len(to_insert) - len(created_ids))
     elif action == "merge":
         quantity_updates: dict[int, float] = {}
         for item in items_to_create:
@@ -256,10 +258,14 @@ async def confirm_import_payload(normalized_payload: dict, duplicate_action: Opt
         updated_count = await bulk_update_quantities(quantity_updates)
 
     return {
-        "message": f"导入完成：新增 {len(created_ids)} 条，更新 {updated_count} 条",
+        "message": (
+            f"导入完成：新增 {len(created_ids)} 条，更新 {updated_count} 条"
+            + (f"，跳过重复 {skipped_duplicates} 条" if skipped_duplicates else "")
+        ),
         "has_duplicates": False,
         "parsed_data": preview_data,
         "created_count": len(created_ids),
         "created_ids": created_ids,
         "updated_count": updated_count,
+        "skipped_duplicates": skipped_duplicates,
     }

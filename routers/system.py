@@ -1,6 +1,5 @@
 import asyncio
 import json
-import shutil
 from pathlib import Path
 from uuid import uuid4
 
@@ -8,9 +7,9 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
-from api_utils import safe_unlink
+from api_utils import safe_unlink, save_upload_file_with_limit
 from app_runtime import RUNTIME_DIR, STATIC_DIR, UPLOAD_DIR
-from backup_service import build_backup_archive, restore_from_archive
+from backup_service import MAX_BACKUP_TOTAL_SIZE, build_backup_archive, restore_from_archive
 from schemas import WebDAVConfigRequest, WebDAVRestoreRequest
 from webdav_service import (
     WebDAVError,
@@ -114,9 +113,21 @@ async def restore_data(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="仅支持 .zip 备份文件")
 
     archive_path = UPLOAD_DIR / f"restore_{uuid4().hex}.zip"
-    with open(archive_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    await file.close()
+    try:
+        save_upload_file_with_limit(
+            file,
+            archive_path,
+            max_bytes=MAX_BACKUP_TOTAL_SIZE,
+            file_label="备份文件",
+        )
+    except HTTPException:
+        safe_unlink(archive_path)
+        raise
+    except Exception as e:
+        safe_unlink(archive_path)
+        raise HTTPException(status_code=500, detail=f"写入备份文件失败: {str(e)}")
+    finally:
+        await file.close()
 
     async with BACKUP_RESTORE_LOCK:
         try:

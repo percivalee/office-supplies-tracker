@@ -3,6 +3,33 @@ import aiosqlite
 from .constants import DB_PATH
 
 
+async def _get_existing_columns(db: aiosqlite.Connection, table: str) -> set[str]:
+    async with db.execute(f"PRAGMA table_info({table})") as cursor:
+        rows = await cursor.fetchall()
+    return {str(row[1]) for row in rows}
+
+
+async def _ensure_item_columns(db: aiosqlite.Connection) -> None:
+    existing_columns = await _get_existing_columns(db, "items")
+    expected_columns = {
+        "arrival_date": "TEXT",
+        "recipient": "TEXT",
+        "distribution_date": "TEXT",
+        "signoff_note": "TEXT",
+    }
+    for column_name, column_type in expected_columns.items():
+        if column_name in existing_columns:
+            continue
+        await db.execute(f"ALTER TABLE items ADD COLUMN {column_name} {column_type}")
+
+
+async def _migrate_legacy_statuses(db: aiosqlite.Connection) -> None:
+    # 兼容历史状态命名，迁移到新的执行流状态。
+    await db.execute("UPDATE items SET status = '已下单' WHERE status = '已采购'")
+    await db.execute("UPDATE items SET status = '待分发' WHERE status = '已到货'")
+    await db.execute("UPDATE items SET status = '已分发' WHERE status = '已发放'")
+
+
 async def init_db():
     """初始化数据库表。"""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -21,12 +48,18 @@ async def init_db():
                 status TEXT NOT NULL DEFAULT '待采购',
                 invoice_issued BOOLEAN DEFAULT 0,
                 payment_status TEXT NOT NULL DEFAULT '未付款',
+                arrival_date TEXT,
+                recipient TEXT,
+                distribution_date TEXT,
+                signoff_note TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(serial_number, item_name, handler)
             )
             """
         )
+        await _ensure_item_columns(db)
+        await _migrate_legacy_statuses(db)
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS item_history (
