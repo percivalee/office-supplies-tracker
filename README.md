@@ -86,6 +86,18 @@ python desktop.py
 scripts\build_windows.bat
 ```
 
+或在 PowerShell 中执行（推荐，兼容性更好）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+```
+
+仅一次性安装打包环境（不打包）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows_env.ps1
+```
+
 产物：
 - `dist\OfficeSuppliesTracker\OfficeSuppliesTracker.exe`
 
