@@ -77,6 +77,12 @@ try {
   Write-Step "Installing requirements..."
   Invoke-AndCheck -Exe $venvPython -CommandArgs @("-m", "pip", "install", "-r", "requirements.txt") -ErrorMessage "Failed to install requirements."
 
+  Write-Step "Ensuring PyInstaller is available..."
+  & $venvPython -c "import PyInstaller" 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Invoke-AndCheck -Exe $venvPython -CommandArgs @("-m", "pip", "install", "pyinstaller") -ErrorMessage "Failed to install PyInstaller."
+  }
+
   if ($OnlySetup) {
     Write-Host ""
     Write-Host "Environment setup complete." -ForegroundColor Green
@@ -86,7 +92,7 @@ try {
 
   Write-Step "Building exe with PyInstaller..."
   $pyinstallerArgs = @(
-    "-m", "pyinstaller",
+    "-m", "PyInstaller",
     "--noconfirm",
     "--clean",
     "--windowed",

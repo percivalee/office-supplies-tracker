@@ -15,6 +15,21 @@ HOST = "127.0.0.1"
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
 STARTUP_TIMEOUT_SECONDS = 45
+_DEVNULL_STREAM = None
+
+
+def _ensure_standard_streams() -> None:
+    """在 --windowed 场景补齐 stdout/stderr，避免第三方库写日志时报错。"""
+    global _DEVNULL_STREAM
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+
+    if _DEVNULL_STREAM is None:
+        _DEVNULL_STREAM = open(os.devnull, "w", encoding="utf-8", buffering=1)
+    if sys.stdout is None:
+        sys.stdout = _DEVNULL_STREAM
+    if sys.stderr is None:
+        sys.stderr = _DEVNULL_STREAM
 
 
 def _runtime_dir() -> Path:
@@ -34,6 +49,7 @@ def _find_free_port(host: str) -> int:
 
 def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
     """子进程入口：启动 FastAPI 服务。"""
+    _ensure_standard_streams()
     os.chdir(runtime_dir)
     Path("uploads").mkdir(exist_ok=True)
 
@@ -46,7 +62,9 @@ def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
         port=port,
         reload=False,
         workers=1,
-        log_level="info",
+        log_level="warning",
+        access_log=False,
+        log_config=None,
     )
 
 
@@ -153,6 +171,7 @@ class DesktopApp:
 
 
 def main() -> None:
+    _ensure_standard_streams()
     mp.freeze_support()
     app = DesktopApp()
     app.run()
