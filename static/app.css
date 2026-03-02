@@ -181,22 +181,3 @@ body {
     background: #eff6ff !important;
     transform: scale(0.985);
 }
-
-.execution-board-lane-row {
-    display: flex;
-    gap: 1rem;
-    width: max-content;
-    height: 100%;
-    min-height: 0;
-    align-items: stretch;
-}
-
-.execution-board-lane {
-    flex: 0 0 clamp(280px, 24vw, 360px);
-    width: clamp(280px, 24vw, 360px);
-    height: 100%;
-}
-
-.execution-board-lane-body {
-    min-height: 0;
-}
