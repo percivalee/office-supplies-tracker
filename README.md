@@ -103,6 +103,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows_env.
 
 分发时请复制整个 `dist\OfficeSuppliesTracker` 目录到目标机器，再双击 `OfficeSuppliesTracker.exe`。
 
+### 方式 C：生成安装包（Setup.exe）
+
+先安装 Inno Setup 6（可选命令）：
+
+```powershell
+winget install JRSoftware.InnoSetup
+```
+
+然后在项目根目录执行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows_installer.ps1
+```
+
+或：
+
+```bat
+scripts\build_windows_installer.bat
+```
+
+安装包产物：
+- `dist-installer\OfficeSuppliesTracker-Setup-YYYY.MM.DD.exe`
+
 备注：
 - 首次执行 OCR 时可能会初始化模型缓存，启动会比平时慢
 - 运行数据（数据库、上传文件、WebDAV 配置）会落在 exe 所在目录
