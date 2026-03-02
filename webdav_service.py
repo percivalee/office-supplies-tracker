@@ -1,5 +1,6 @@
 import base64
 import http.client
+import tempfile
 from datetime import timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -408,7 +409,7 @@ def download_backup_to_file(config: dict, filename: str, destination: Path) -> P
 
 
 def download_backup(config: dict, filename: str) -> bytes:
-    temp_path = Path("/tmp") / f".webdav_download_{uuid4().hex}.zip"
+    temp_path = Path(tempfile.gettempdir()) / f".webdav_download_{uuid4().hex}.zip"
     try:
         download_backup_to_file(config, filename, temp_path)
         return temp_path.read_bytes()

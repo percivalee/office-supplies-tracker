@@ -66,6 +66,35 @@ source venv/bin/activate
 python desktop.py
 ```
 
+## Windows 打开即用
+
+### 方式 A：源码双击启动（推荐）
+
+1. 在 Windows 上安装 Python 3.10+（安装时勾选 `Add Python to PATH`）
+2. 双击项目根目录的 `start_windows.bat`
+
+说明：
+- 首次启动会自动创建 `venv` 并安装依赖，时间较长属于正常现象
+- 后续双击会直接启动桌面窗口
+- 如需强制重装依赖，可用命令行运行：`start_windows.bat --reinstall`
+
+### 方式 B：打包为 exe 分发
+
+在 Windows 机器上执行：
+
+```bat
+scripts\build_windows.bat
+```
+
+产物：
+- `dist\OfficeSuppliesTracker\OfficeSuppliesTracker.exe`
+
+分发时请复制整个 `dist\OfficeSuppliesTracker` 目录到目标机器，再双击 `OfficeSuppliesTracker.exe`。
+
+备注：
+- 首次执行 OCR 时可能会初始化模型缓存，启动会比平时慢
+- 运行数据（数据库、上传文件、WebDAV 配置）会落在 exe 所在目录
+
 ## 解析回归测试
 
 用于持续验证“可复制 PDF / 扫描 PDF / 图片”三类样本解析效果：
