@@ -84,8 +84,8 @@
 ## 7. 执行看板
 
 - 点击顶部 `执行看板`
-- 卡片按执行流状态分列：`待采购`、`已下单`、`待到货`、`待分发`
-- 看板默认固定四列同屏展示，便于总览各状态进度
+- 卡片按执行流状态分列：`待采购`、`已下单`、`待到货`、`待分发`（固定四列同屏）
+- `已分发` 作为闭环结果，不单独占用执行中列
 - 在 `待分发` 列可填写分发日期和签收备注，点击 `完成分发闭环` 后流转为 `已分发`
 
 ## 8. Excel 导出
@@ -156,7 +156,35 @@
 
 备份项目根目录的 `office_supplies.db` 即可。
 
-## 14. 解析回归
+### 13.4 Windows 打包报错
+
+- 必须先 `cd` 到项目根目录再执行脚本
+- 不要执行带行号的命令（例如 `scripts/build_windows.bat:1`）
+- 若出现 `No module named pyinstaller`，先执行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows_env.ps1`
+- 若出现 `ISCC.exe not found`，执行：`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows_installer.ps1 -IsccPath "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"`
+
+## 14. Windows 打包与安装包
+
+在项目根目录 PowerShell 执行：
+
+```powershell
+# 1) 安装打包环境（仅安装，不打包）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows_env.ps1
+
+# 2) 生成 exe
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+
+# 3) 生成 Setup 安装包（需先安装 Inno Setup 6）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows_installer.ps1
+```
+
+产物位置：
+
+- exe：`dist\OfficeSuppliesTracker\OfficeSuppliesTracker.exe`
+- 安装包：`dist-installer\OfficeSuppliesTracker-Setup-YYYY.MM.DD.exe`
+- 构建日志：`build_logs\`
+
+## 15. 解析回归
 
 当你调整了 PDF/OCR 解析逻辑后，建议执行回归：
 

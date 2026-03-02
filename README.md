@@ -17,7 +17,7 @@
 - 输入容错与规范化：自动清理空白、统一流水号格式、校验并规范链接 URL
 - 手动录入提效：部门/经办人支持自动补全，流水号可留空自动生成
 - 高级筛选：按状态、申领部门、月份（`YYYY-MM`）筛选
-- 执行看板闭环：`待采购 → 已下单 → 待到货 → 待分发 → 已分发`（固定四列同屏展示）
+- 执行看板闭环：`待采购 → 已下单 → 待到货 → 待分发` 固定四列同屏展示，完成后流转为 `已分发`
 - 服务端分页：支持页码切换、每页条数切换、页码跳转
 - 宽表格交互：支持横向滚动，首列复选框与末列操作列冻结（Sticky）
 - Excel 导出：按当前筛选导出 `.xlsx`
@@ -67,6 +67,28 @@ python desktop.py
 ```
 
 ## Windows 打开即用
+
+### 先执行哪个命令（建议顺序）
+
+在项目根目录打开 PowerShell 后，按目标选择以下命令：
+
+```powershell
+# 1) 只想运行系统（不打包）
+.\start_windows.bat
+
+# 2) 只安装打包环境（不产出 exe）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows_env.ps1
+
+# 3) 产出 exe
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+
+# 4) 产出安装包 Setup.exe（需先安装 Inno Setup 6）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows_installer.ps1
+```
+
+注意：
+- 命令前不要带行号后缀（例如 `scripts/build_windows.bat:1` 是错误写法）
+- 必须在项目根目录执行，否则会出现“系统找不到指定路径”
 
 ### 方式 A：源码双击启动（推荐）
 
@@ -140,6 +162,12 @@ scripts\build_windows_installer.bat
 - 先确认 Inno Setup 已安装
 - 然后使用 `-IsccPath` 明确指定 `ISCC.exe` 路径
 - 或设置环境变量 `ISCC_PATH` 后重新打开 PowerShell 再执行
+
+常见错误排查：
+- `No module named pyinstaller`：先执行 `setup_windows_env.ps1`，或删除旧 `venv` 后使用 `build_windows.ps1 -ReinstallVenv`
+- `pyinstaller: error: argument --add-data: expected one argument`：不要手工拆行执行 PyInstaller 参数，直接运行 `build_windows.ps1`
+- 出现 `>>>` 进入 Python 交互：这是脚本被中断或误进入解释器，输入 `exit()` 退出后，重新执行上面的完整命令
+- `Get-Command iscc.exe` 找不到但已安装 Inno Setup：重新打开 PowerShell，再执行 `build_windows_installer.ps1 -IsccPath "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"`
 
 备注：
 - 首次执行 OCR 时可能会初始化模型缓存，启动会比平时慢
