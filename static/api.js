@@ -9,6 +9,33 @@
                 closeAddModal() {
                     this.showAddModal = false;
                 },
+                initOcrEngineSettings() {
+                    try {
+                        const engine = (window.localStorage.getItem('ocr_engine') || '').trim().toLowerCase();
+                        this.ocrEngine = (engine === 'cloud' || engine === 'local')
+                            ? engine
+                            : ((engine === 'gemini') ? 'cloud' : 'local');
+                        const protocol = (window.localStorage.getItem('llm_protocol') || '').trim().toLowerCase();
+                        this.llmProtocol = (protocol === 'google' || protocol === 'openai' || protocol === 'anthropic')
+                            ? protocol
+                            : 'openai';
+                        this.llmApiKey = window.localStorage.getItem('llm_api_key')
+                            || window.localStorage.getItem('gemini_api_key')
+                            || '';
+                        this.llmModelName = window.localStorage.getItem('llm_model_name')
+                            || window.localStorage.getItem('gemini_model_name')
+                            || '';
+                        this.llmBaseUrl = window.localStorage.getItem('llm_base_url')
+                            || window.localStorage.getItem('gemini_base_url')
+                            || '';
+                    } catch (_) {
+                        this.ocrEngine = 'local';
+                        this.llmProtocol = 'openai';
+                        this.llmApiKey = '';
+                        this.llmModelName = '';
+                        this.llmBaseUrl = '';
+                    }
+                },
                 formatCurrency(value) {
                     const amount = Number(value);
                     if (!Number.isFinite(amount)) return '0.00';
@@ -29,7 +56,7 @@
                     return `${gb.toFixed(2)} GB`;
                 },
                 isValidView(view) {
-                    return ['dashboard', 'ledger', 'execution', 'reports', 'audit'].includes(view);
+                    return ['dashboard', 'ledger', 'execution', 'reports', 'audit', 'settings'].includes(view);
                 },
                 normalizeView(view) {
                     return this.isValidView(view) ? view : 'dashboard';
@@ -1407,6 +1434,17 @@
                         this.showToast('已有解析任务正在执行，请稍候', 'error');
                         return;
                     }
+                    const engine = (this.ocrEngine === 'cloud') ? 'cloud' : 'local';
+                    const protocol = (this.llmProtocol === 'google' || this.llmProtocol === 'anthropic')
+                        ? this.llmProtocol
+                        : 'openai';
+                    const apiKey = (this.llmApiKey || '').toString().trim();
+                    const modelName = (this.llmModelName || '').toString().trim();
+                    const baseUrl = (this.llmBaseUrl || '').toString().trim();
+                    if (engine === 'cloud' && !apiKey) {
+                        this.showToast('请先在系统设置中填写云端协议 API Key', 'error');
+                        return;
+                    }
                     const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
                     const validExts = ['pdf', 'png', 'jpg', 'jpeg', 'jfif'];
                     const ext = (file.name.split('.').pop() || '').toLowerCase();
@@ -1424,7 +1462,12 @@
                     try {
                         const formData = new FormData();
                         formData.append('file', file);
-                        const res = await axios.post('/api/upload', formData, {
+                        formData.append('engine', engine);
+                        formData.append('protocol', protocol);
+                        formData.append('api_key', apiKey);
+                        formData.append('model_name', modelName);
+                        formData.append('base_url', baseUrl);
+                        const res = await axios.post('/api/upload-ocr', formData, {
                             headers: { 'Content-Type': 'multipart/form-data' }
                         });
                         const taskId = (res.data?.task_id || '').toString().trim();

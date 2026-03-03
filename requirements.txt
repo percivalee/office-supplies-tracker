@@ -7,6 +7,9 @@ paddlepaddle==3.0.0
 pillow==11.1.0
 pydantic==2.10.0
 aiosqlite==0.20.0
+google-generativeai==0.8.5
+openai==1.109.1
+anthropic
 sqlalchemy==2.0.48
 alembic==1.18.4
 openpyxl==3.1.5

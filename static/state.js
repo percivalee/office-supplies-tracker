@@ -49,6 +49,11 @@
                     confirmModalDanger: false,
                     confirmModalResolver: null,
                     uploading: false,
+                    ocrEngine: 'local',
+                    llmProtocol: 'openai',
+                    llmApiKey: '',
+                    llmModelName: '',
+                    llmBaseUrl: '',
                     uploadTaskId: '',
                     uploadPollTimer: null,
                     uploadPollInFlight: false,
@@ -369,7 +374,46 @@
                     });
                 },
             },
+        watch: {
+                ocrEngine(next) {
+                    try {
+                        const value = (next === 'cloud' || next === 'local') ? next : 'local';
+                        window.localStorage.setItem('ocr_engine', value);
+                    } catch (_) {
+                    }
+                },
+                llmApiKey(next) {
+                    try {
+                        window.localStorage.setItem('llm_api_key', (next || '').toString());
+                    } catch (_) {
+                    }
+                },
+                llmProtocol(next) {
+                    try {
+                        const value = (next === 'google' || next === 'openai' || next === 'anthropic')
+                            ? next
+                            : 'openai';
+                        window.localStorage.setItem('llm_protocol', value);
+                    } catch (_) {
+                    }
+                },
+                llmModelName(next) {
+                    try {
+                        window.localStorage.setItem('llm_model_name', (next || '').toString());
+                    } catch (_) {
+                    }
+                },
+                llmBaseUrl(next) {
+                    try {
+                        window.localStorage.setItem('llm_base_url', (next || '').toString());
+                    } catch (_) {
+                    }
+                },
+            },
         mounted() {
+                if (typeof this.initOcrEngineSettings === 'function') {
+                    this.initOcrEngineSettings();
+                }
                 this.loadAutocomplete();
                 this.loadItems();
                 this.loadStats();

@@ -1,5 +1,5 @@
 import aiosqlite
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pathlib import Path
 from threading import Lock
 from uuid import uuid4
@@ -11,6 +11,7 @@ from api_utils import (
     save_upload_file_with_limit,
 )
 from app_locks import DATA_MUTATION_LOCK
+from gemini_ocr import GeminiParseError, parse_document_with_gemini
 from import_flow import build_preview_data, confirm_import_payload, normalize_import_payload
 from parser import parse_document
 from schemas import DuplicateHandleRequest, ImportConfirmRequest
@@ -20,6 +21,8 @@ tasks: dict[str, dict] = {}
 _tasks_lock = Lock()
 _TERMINAL_TASK_STATUSES = {"completed", "failed"}
 _MAX_TRACKED_TASKS = 200
+_DEFAULT_UPLOAD_ENGINE = "local"
+_DEFAULT_LLM_PROTOCOL = "openai"
 
 
 def _normalize_payload_from_fields(
@@ -105,10 +108,62 @@ def _prune_tasks() -> None:
                 tasks.pop(key, None)
 
 
-def _run_parse_task(task_id: str, file_path: Path) -> None:
+def _normalize_engine(raw_engine: str | None) -> str:
+    engine = str(raw_engine or "").strip().lower()
+    if engine in {"local", "cloud"}:
+        return engine
+    if engine == "gemini":
+        return "cloud"
+    return _DEFAULT_UPLOAD_ENGINE
+
+
+def _normalize_protocol(raw_protocol: str | None) -> str:
+    protocol = str(raw_protocol or "").strip().lower()
+    if protocol in {"google", "openai", "anthropic"}:
+        return protocol
+    return _DEFAULT_LLM_PROTOCOL
+
+
+def _parse_by_engine(
+    file_path: Path,
+    *,
+    engine: str,
+    protocol: str,
+    api_key: str | None = None,
+    model_name: str | None = None,
+    base_url: str | None = None,
+) -> dict:
+    normalized_engine = _normalize_engine(engine)
+    if normalized_engine == "cloud":
+        return parse_document_with_gemini(
+            file_path,
+            protocol=_normalize_protocol(protocol),
+            api_key_override=api_key,
+            model_name_override=model_name,
+            base_url_override=base_url,
+        )
+    return parse_document(str(file_path))
+
+
+def _run_parse_task(
+    task_id: str,
+    file_path: Path,
+    engine: str,
+    protocol: str,
+    api_key: str,
+    model_name: str,
+    base_url: str,
+) -> None:
     _set_task(task_id, status="processing", result=None)
     try:
-        parsed = parse_document(str(file_path))
+        parsed = _parse_by_engine(
+            file_path,
+            engine=engine,
+            protocol=protocol,
+            api_key=api_key,
+            model_name=model_name,
+            base_url=base_url,
+        )
         normalized_payload = _normalize_payload_from_parse_result(parsed)
         preview_data = build_preview_data(normalized_payload, normalized_payload["items"])
         _set_task(
@@ -121,11 +176,17 @@ def _run_parse_task(task_id: str, file_path: Path) -> None:
                 "requires_confirmation": True,
             },
         )
+    except GeminiParseError as e:
+        _set_task(
+            task_id,
+            status="failed",
+            result={"detail": str(e)},
+        )
     except Exception as e:
         _set_task(
             task_id,
             status="failed",
-            result={"detail": f"解析失败: {str(e)}"},
+            result={"detail": f"解析失败: {str(e)}；请切换为手动录入。"},
         )
     finally:
         safe_unlink(file_path)
@@ -133,9 +194,22 @@ def _run_parse_task(task_id: str, file_path: Path) -> None:
 
 @router.post("/upload", status_code=202)
 @router.post("/upload-ocr", status_code=202)
-async def upload_and_parse(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+async def upload_and_parse(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    engine: str = Form(default=_DEFAULT_UPLOAD_ENGINE),
+    protocol: str = Form(default=_DEFAULT_LLM_PROTOCOL),
+    api_key: str = Form(default=""),
+    model_name: str = Form(default=""),
+    base_url: str = Form(default=""),
+):
     """上传文件并创建异步解析任务。"""
     file_path = build_upload_path(file.filename or "")
+    normalized_engine = _normalize_engine(engine)
+    normalized_protocol = _normalize_protocol(protocol)
+    normalized_api_key = str(api_key or "").strip()
+    normalized_model_name = str(model_name or "").strip()
+    normalized_base_url = str(base_url or "").strip()
 
     try:
         save_upload_file_with_limit(
@@ -148,7 +222,16 @@ async def upload_and_parse(background_tasks: BackgroundTasks, file: UploadFile =
         with _tasks_lock:
             tasks[task_id] = {"status": "pending", "result": None}
         _prune_tasks()
-        background_tasks.add_task(_run_parse_task, task_id, file_path)
+        background_tasks.add_task(
+            _run_parse_task,
+            task_id,
+            file_path,
+            normalized_engine,
+            normalized_protocol,
+            normalized_api_key,
+            normalized_model_name,
+            normalized_base_url,
+        )
         return {"task_id": task_id}
 
     except HTTPException:

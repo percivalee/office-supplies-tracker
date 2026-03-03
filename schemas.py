@@ -82,6 +82,16 @@ class WebDAVRestoreRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=300)
 
 
+class GeminiConfigRequest(BaseModel):
+    api_key: str = Field(default="", max_length=300)
+    model_name: str = Field(default="gemini-1.5-flash", max_length=120)
+    request_timeout_seconds: int = Field(default=90, ge=10, le=300)
+
+
+class GeminiModelsRequest(BaseModel):
+    api_key: str = Field(default="", max_length=300)
+
+
 class BackupHealthCheckDbReport(BaseModel):
     integrity: str
     tables: list[str]

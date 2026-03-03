@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/app.css?v=1.0.2">
+    <link rel="stylesheet" href="/static/app.css?v=1.1.0">
         <style>
             .toast-enter-active,
             .toast-leave-active {
@@ -90,19 +90,27 @@
                     🛡️ 审计日志
                 </button>
             </nav>
+            <div class="mt-auto p-3 border-t border-slate-200">
+                <button @click="switchView('settings')"
+                        :class="currentView === 'settings' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-700/10' : 'text-slate-600 hover:bg-slate-50'"
+                        class="w-full h-10 px-3 rounded-lg text-left text-sm font-medium transition-all duration-200 ease-in-out">
+                    ⚙️ 系统设置
+                </button>
+            </div>
         </aside>
 
         <div class="flex-1 min-w-0 flex flex-col">
-            <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+            <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center">
                 <div class="text-sm text-slate-500">
-                    <span class="font-medium text-slate-800">{{ currentView === 'dashboard' ? '概览看板' : (currentView === 'ledger' ? '采购台账明细' : (currentView === 'execution' ? '采购执行看板' : (currentView === 'reports' ? '统计报表' : '审计日志'))) }}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button @click="backupData" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">备份</button>
-                    <button @click="$refs.restoreInput && $refs.restoreInput.click()" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">恢复</button>
-                    <button @click="openRecycleBinModal" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">回收站</button>
-                    <button @click="openDataQualityModal" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">数据巡检</button>
-                    <button @click="openWebdavModal" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-all duration-200 ease-in-out">云同步</button>
+                    <span class="font-medium text-slate-800">
+                        {{
+                            currentView === 'dashboard' ? '概览看板' :
+                            (currentView === 'ledger' ? '采购台账明细' :
+                            (currentView === 'execution' ? '采购执行看板' :
+                            (currentView === 'reports' ? '统计报表' :
+                            (currentView === 'audit' ? '审计日志' : '系统设置'))))
+                        }}
+                    </span>
                 </div>
             </header>
 
@@ -923,6 +931,154 @@
                         </div>
                     </div>
                 </section>
+
+                <section v-else-if="currentView === 'settings'" class="view-pane h-full overflow-y-auto pr-1">
+                    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6 md:p-8 space-y-10">
+                        <div>
+                            <h2 class="text-3xl font-semibold tracking-tight text-slate-900">系统设置</h2>
+                            <p class="mt-1 text-sm text-slate-500">统一管理 AI 解析引擎、数据容灾与系统维护入口。</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-xl font-semibold tracking-tight text-slate-900">🧠 AI 视觉解析引擎</h3>
+                                <p class="mt-1 text-sm text-slate-500">按场景选择本地离线 OCR 或云端多模态大模型，并可配置协议和中转地址。</p>
+                            </div>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <label class="cursor-pointer rounded-xl border p-4 transition-all duration-200 ease-in-out bg-white"
+                                       :class="ocrEngine === 'local' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20 shadow-sm' : 'border-slate-200 hover:border-blue-300 hover:shadow-md'">
+                                    <div class="flex items-start gap-3">
+                                        <input v-model="ocrEngine" type="radio" value="local" class="mt-1 text-blue-600 focus:ring-blue-500/40">
+                                        <div>
+                                            <div class="text-sm font-semibold text-slate-900">local</div>
+                                            <div class="mt-1 text-xs text-slate-500">本地基础 OCR (离线运行，保障绝密数据安全)</div>
+                                        </div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer rounded-xl border p-4 transition-all duration-200 ease-in-out bg-white"
+                                       :class="ocrEngine === 'cloud' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/20 shadow-sm' : 'border-slate-200 hover:border-blue-300 hover:shadow-md'">
+                                    <div class="flex items-start gap-3">
+                                        <input v-model="ocrEngine" type="radio" value="cloud" class="mt-1 text-blue-600 focus:ring-blue-500/40">
+                                        <div>
+                                            <div class="text-sm font-semibold text-slate-900">cloud</div>
+                                            <div class="mt-1 text-xs text-slate-500">云端视觉大模型 (高精度，支持多协议与中转站)</div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div v-if="ocrEngine === 'cloud'" class="bg-slate-50 p-4 rounded-md flex flex-col gap-4 border border-slate-200">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-2">接口协议 (Protocol)</label>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <label class="cursor-pointer rounded-lg border bg-white p-3 h-full flex items-start transition-all duration-200 ease-in-out"
+                                               :class="llmProtocol === 'openai' ? 'border-blue-500 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-blue-300'">
+                                            <div class="flex items-start gap-2">
+                                                <input v-model="llmProtocol" type="radio" value="openai" class="mt-0.5 text-blue-600 focus:ring-blue-500/40">
+                                                <div>
+                                                    <div class="text-sm font-semibold text-slate-900">OpenAI 兼容</div>
+                                                    <div class="mt-1 text-xs text-slate-500">适配 GPT / Qwen 及各中转站</div>
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <label class="cursor-pointer rounded-lg border bg-white p-3 h-full flex items-start transition-all duration-200 ease-in-out"
+                                               :class="llmProtocol === 'anthropic' ? 'border-blue-500 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-blue-300'">
+                                            <div class="flex items-start gap-2">
+                                                <input v-model="llmProtocol" type="radio" value="anthropic" class="mt-0.5 text-blue-600 focus:ring-blue-500/40">
+                                                <div>
+                                                    <div class="text-sm font-semibold text-slate-900">Anthropic</div>
+                                                    <div class="mt-1 text-xs text-slate-500">适配 Claude 等系列</div>
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <label class="cursor-pointer rounded-lg border bg-white p-3 h-full flex items-start transition-all duration-200 ease-in-out"
+                                               :class="llmProtocol === 'google' ? 'border-blue-500 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-blue-300'">
+                                            <div class="flex items-start gap-2">
+                                                <input v-model="llmProtocol" type="radio" value="google" class="mt-0.5 text-blue-600 focus:ring-blue-500/40">
+                                                <div>
+                                                    <div class="text-sm font-semibold text-slate-900">Google 直连</div>
+                                                    <div class="mt-1 text-xs text-slate-500">适配 Gemini 等系列</div>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">API Key（必填）</label>
+                                    <input
+                                        v-model="llmApiKey"
+                                        type="password"
+                                        class="h-10 px-3 w-full border border-slate-200 rounded-lg text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out"
+                                        placeholder="请输入对应协议的 API Key。"
+                                    >
+                                </div>
+
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">模型名称 (Model Name)</label>
+                                    <input
+                                        v-model="llmModelName"
+                                        type="text"
+                                        class="h-10 px-3 w-full border border-slate-200 rounded-lg text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out"
+                                        placeholder="留空则默认使用该协议下的最新视觉模型，支持自定义。"
+                                    >
+                                </div>
+
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">中转接口地址 (Base URL)</label>
+                                    <input
+                                        v-model="llmBaseUrl"
+                                        type="text"
+                                        class="h-10 px-3 w-full border border-slate-200 rounded-lg text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 ease-in-out"
+                                        :placeholder="llmProtocol === 'google' ? '无代理请留空' : '例如: https://api.openai-hk.com/v1'"
+                                    >
+                                </div>
+                                <p class="text-[11px] text-slate-500">配置仅保存在当前浏览器 localStorage，上传时随请求发送到后端。</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-xl font-semibold tracking-tight text-slate-900">💾 数据容灾与同步</h3>
+                                <p class="mt-1 text-sm text-slate-500">管理本地备份、恢复和云端同步，保障关键台账数据可回溯。</p>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <button @click="backupData" class="bg-white border border-slate-200 rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 ease-in-out">
+                                    <div class="text-sm font-semibold text-slate-900">数据备份</div>
+                                    <div class="mt-1 text-xs text-slate-500">导出数据库与附件压缩包</div>
+                                </button>
+                                <button @click="$refs.restoreInput && $refs.restoreInput.click()" class="bg-white border border-slate-200 rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 ease-in-out">
+                                    <div class="text-sm font-semibold text-slate-900">数据恢复</div>
+                                    <div class="mt-1 text-xs text-slate-500">从本地备份快速恢复系统</div>
+                                </button>
+                                <button @click="openWebdavModal" class="bg-white border border-slate-200 rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 ease-in-out">
+                                    <div class="text-sm font-semibold text-slate-900">WebDAV 云同步</div>
+                                    <div class="mt-1 text-xs text-slate-500">配置远程备份与灾备策略</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-xl font-semibold tracking-tight text-slate-900">🛠️ 系统维护</h3>
+                                <p class="mt-1 text-sm text-slate-500">处理回收站、数据质量巡检与审计日志，维持长期稳定运行。</p>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <button @click="openRecycleBinModal" class="bg-white border border-slate-200 rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 ease-in-out">
+                                    <div class="text-sm font-semibold text-slate-900">回收站</div>
+                                    <div class="mt-1 text-xs text-slate-500">恢复误删记录或彻底删除</div>
+                                </button>
+                                <button @click="openDataQualityModal" class="bg-white border border-slate-200 rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 ease-in-out">
+                                    <div class="text-sm font-semibold text-slate-900">数据巡检</div>
+                                    <div class="mt-1 text-xs text-slate-500">扫描异常字段与重复键风险</div>
+                                </button>
+                                <button @click="loadHistory(); switchView('audit')" class="bg-white border border-slate-200 rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 ease-in-out">
+                                    <div class="text-sm font-semibold text-slate-900">审计日志</div>
+                                    <div class="mt-1 text-xs text-slate-500">查看并回滚历史变更轨迹</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </main>
 
         </div>
@@ -1320,9 +1476,9 @@
 
     </div>
     
-    <script src="/static/state.js?v=1.0.2"></script>
-    <script src="/static/api.js?v=1.0.2"></script>
-    <script src="/static/ui.js?v=1.0.2"></script>
+    <script src="/static/state.js?v=1.1.0"></script>
+    <script src="/static/api.js?v=1.1.0"></script>
+    <script src="/static/ui.js?v=1.1.0"></script>
     <script>
         window.addEventListener('load', () => {
             setTimeout(() => {

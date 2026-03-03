@@ -2,9 +2,13 @@
 
 用于内部办公用品采购管理的单用户工具。支持上传领用单（PDF/图片）自动识别，在线维护采购流程，并可按条件筛选与导出 Excel。
 
+当前版本：`1.1.0`
+
 ## 核心功能
 
 - 单据导入解析：上传 PDF/图片后自动提取流水号、部门、经办人、日期与物品明细
+- AI 视觉解析网关：系统设置中可切换 `local/cloud` 引擎，`cloud` 支持 `OpenAI 兼容 / Anthropic / Google` 三协议与中转地址
+- 异步解析任务：上传后立即返回 `task_id`，前端轮询任务状态，避免大文件阻塞超时
 - 导入预览校正：入库前可逐项编辑，避免脏数据直接落库
 - OCR 兜底链路：可复制 PDF 优先结构化提取，扫描 PDF/图片自动走 OCR
 - 重复处理策略：按 `(流水号 + 物品名称 + 经办人)` 检测重复，支持跳过/合并数量/仅新增非重复项
@@ -215,7 +219,9 @@ python3 scripts/run_regression_suite.py
 | GET | `/api/recycle-bin` | 回收站列表（软删除记录） |
 | POST | `/api/items/{id}/restore` | 从回收站恢复单条记录 |
 | DELETE | `/api/recycle-bin/{id}` | 彻底删除回收站记录 |
-| POST | `/api/upload` | 上传并解析领用单 |
+| POST | `/api/upload-ocr` | 上传并创建异步解析任务（支持 `engine/protocol/api_key/model_name/base_url`） |
+| POST | `/api/upload` | 兼容旧路径，行为同 `/api/upload-ocr` |
+| GET | `/api/tasks/{task_id}` | 查询解析任务状态与结果 |
 | POST | `/api/import/confirm` | 确认导入（支持人工校正与重复处理） |
 | POST | `/api/upload/handle-duplicates` | 处理重复物品 |
 | GET | `/api/stats` | 获取统计数据 |
@@ -235,6 +241,9 @@ python3 scripts/run_regression_suite.py
 | GET | `/api/webdav/backups` | 列出 WebDAV 远端备份 |
 | POST | `/api/webdav/backup` | 上传当前备份到 WebDAV |
 | POST | `/api/webdav/restore` | 从 WebDAV 下载并恢复指定备份 |
+| GET | `/api/gemini/config` | 读取 Gemini 默认配置（脱敏） |
+| PUT | `/api/gemini/config` | 保存 Gemini 默认配置 |
+| POST | `/api/gemini/models` | 按 API Key 拉取可用 Gemini 模型 |
 
 ## 关键参数说明
 
@@ -243,6 +252,8 @@ python3 scripts/run_regression_suite.py
 - `action`：历史操作类型，仅支持 `create` / `update` / `delete`
 - `page`：页码，从 `1` 开始
 - `page_size`：每页条数，范围 `1-200`
+- `engine`：解析引擎，`local` 或 `cloud`
+- `protocol`：云端协议，`openai` / `anthropic` / `google`
 
 ## 数据字段
 
