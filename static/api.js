@@ -1127,7 +1127,11 @@
                 },
                 handleFilter() {
                     this.currentPage = 1;
+                    this.reportsInitialized = false;
                     this.loadItems();
+                    if (this.currentView === 'reports') {
+                        this.loadAmountReport();
+                    }
                 },
                 goToPage(page) {
                     if (page < 1 || page > this.totalPages || page === this.currentPage) return;
