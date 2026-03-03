@@ -14,31 +14,39 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/app.css?v=1.0.1">
-    <style>
-        .toast-enter-active,
-        .toast-leave-active {
-            transition: all 0.28s ease;
-        }
+        <style>
+            .toast-enter-active,
+            .toast-leave-active {
+                transition: opacity 0.2s ease, transform 0.2s ease;
+            }
 
-        .toast-enter-from,
-        .toast-leave-to {
-            opacity: 0;
-            transform: translate3d(22px, -10px, 0);
-        }
+            .toast-enter-from,
+            .toast-leave-to {
+                opacity: 0;
+                transform: translate3d(18px, -6px, 0) scale(0.98);
+            }
 
-        .toast-move {
-            transition: transform 0.28s ease;
-        }
+            .toast-move {
+                transition: transform 0.2s ease;
+            }
 
         @keyframes scan {
             0% { top: 0%; }
             50% { top: 100%; }
             100% { top: 0%; }
         }
-        .animate-scan {
-            animation: scan 2s ease-in-out infinite;
-        }
-    </style>
+            .animate-scan {
+                animation: scan 2s ease-in-out infinite;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .toast-enter-active,
+                .toast-leave-active,
+                .toast-move {
+                    transition: none !important;
+                }
+            }
+        </style>
 </head>
     <body class="flex h-screen w-full bg-slate-50 overflow-hidden text-slate-900">
     <div id="app" class="flex h-screen w-full overflow-hidden" style="display:none;">
@@ -99,7 +107,7 @@
             </header>
 
             <main class="flex-1 min-h-0 p-6 overflow-hidden">
-                <section v-if="currentView === 'dashboard'" class="h-full overflow-y-auto space-y-6 pr-1">
+                <section v-if="currentView === 'dashboard'" class="view-pane h-full overflow-y-auto space-y-6 pr-1">
                     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                         <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-5">
                             <div class="text-sm font-medium text-slate-500">所有采购项</div>
@@ -155,7 +163,7 @@
                     </div>
                 </section>
 
-                <section v-else-if="currentView === 'ledger'" class="h-full min-h-0 flex flex-col gap-3">
+                <section v-else-if="currentView === 'ledger'" class="view-pane h-full min-h-0 flex flex-col gap-3">
                     <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-4 shrink-0">
                         <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
                             <div>
@@ -434,7 +442,7 @@
                     </div>
                 </section>
 
-                <section v-else-if="currentView === 'execution'" class="h-full min-h-0 flex flex-col gap-4">
+                <section v-else-if="currentView === 'execution'" class="view-pane h-full min-h-0 flex flex-col gap-4">
                     <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
                         <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                             <div>
@@ -569,7 +577,7 @@
                     </div>
                 </section>
 
-                <section v-else-if="currentView === 'reports'" class="h-full min-h-0 flex flex-col gap-4">
+                <section v-else-if="currentView === 'reports'" class="view-pane h-full min-h-0 flex flex-col gap-4">
                     <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
                         <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                             <div>
@@ -621,7 +629,7 @@
                                         </div>
                                         <div class="mt-4 max-h-[420px] overflow-y-auto space-y-3 pr-1">
                                             <div
-                                                v-for="row in reportDepartmentRows"
+                                                v-for="(row, idx) in reportDepartmentRows"
                                                 :key="`dept-chart-${row.department}-${row._rank}`"
                                                 class="rounded-lg border border-slate-200 bg-slate-50 p-3"
                                             >
@@ -633,7 +641,7 @@
                                                     <span class="text-sm font-semibold font-mono text-blue-700">¥ {{ formatCurrency(row._amount) }}</span>
                                                 </div>
                                                 <div class="mt-2 h-2 rounded-full bg-slate-200/80 overflow-hidden">
-                                                    <div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500" :style="{ width: `${row._ratio.toFixed(2)}%` }"></div>
+                                                    <div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500 report-animate-x" :style="{ width: `${row._ratio.toFixed(2)}%`, animationDelay: `${idx * 40}ms` }"></div>
                                                 </div>
                                                 <div class="mt-1 text-[11px] text-right text-slate-500">占总金额 {{ row._share.toFixed(1) }}%</div>
                                             </div>
@@ -677,13 +685,13 @@
                                     </div>
                                     <div class="mt-6 h-52 flex items-end gap-2">
                                         <div
-                                            v-for="row in reportMonthRows"
+                                            v-for="(row, idx) in reportMonthRows"
                                             :key="`month-chart-${row.month}`"
                                             class="flex-1 min-w-0 flex flex-col items-center gap-2"
                                         >
                                             <div
-                                                class="w-full max-w-[52px] rounded-t-md bg-gradient-to-t from-indigo-600 to-blue-500 transition-all duration-500"
-                                                :style="{ height: `${row._barHeight}px`, opacity: row._amount > 0 ? 0.95 : 0.25 }"
+                                                class="w-full max-w-[52px] rounded-t-md bg-gradient-to-t from-indigo-600 to-blue-500 transition-all duration-500 report-animate-y"
+                                                :style="{ height: `${row._barHeight}px`, opacity: row._amount > 0 ? 0.95 : 0.25, animationDelay: `${idx * 40}ms` }"
                                             ></div>
                                             <div class="text-[10px] font-medium text-slate-500 truncate w-full text-center px-1">{{ row.month || '-' }}</div>
                                         </div>
@@ -708,7 +716,7 @@
                                     </div>
                                     <div class="mt-4 space-y-3">
                                         <div
-                                            v-for="row in reportFunnelRows"
+                                            v-for="(row, idx) in reportFunnelRows"
                                             :key="`funnel-${row.key}`"
                                             class="rounded-lg border border-slate-200 bg-slate-50 p-3"
                                         >
@@ -717,7 +725,7 @@
                                                 <span class="text-sm font-semibold font-mono text-blue-700">{{ row._count }} 条</span>
                                             </div>
                                             <div class="mt-2 h-2 rounded-full bg-slate-200/80 overflow-hidden">
-                                                <div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500" :style="{ width: `${row._ratio.toFixed(2)}%` }"></div>
+                                                <div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500 report-animate-x" :style="{ width: `${row._ratio.toFixed(2)}%`, animationDelay: `${idx * 45}ms` }"></div>
                                             </div>
                                             <div class="mt-1 flex items-center justify-between text-[11px] text-slate-500">
                                                 <span>转化率 {{ row._conversion.toFixed(1) }}%</span>
@@ -738,7 +746,7 @@
                                         <div class="mt-2 text-[11px] text-slate-500">平均 {{ operationsReport.cycleDistribution.requestToArrival.averageDays.toFixed(2) }} 天</div>
                                         <div class="mt-4 space-y-2">
                                             <div
-                                                v-for="row in requestToArrivalRows"
+                                                v-for="(row, idx) in requestToArrivalRows"
                                                 :key="`req-arrival-${row.label}`"
                                                 class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
                                             >
@@ -747,7 +755,7 @@
                                                     <span class="font-semibold font-mono text-slate-700">{{ row._count }}</span>
                                                 </div>
                                                 <div class="mt-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                                    <div class="h-full rounded-full bg-blue-500" :style="{ width: `${row._ratio.toFixed(2)}%` }"></div>
+                                                    <div class="h-full rounded-full bg-blue-500 report-animate-x" :style="{ width: `${row._ratio.toFixed(2)}%`, animationDelay: `${idx * 35}ms` }"></div>
                                                 </div>
                                             </div>
                                             <div v-if="!requestToArrivalRows.length" class="py-10 text-center text-xs text-slate-500">暂无周期样本</div>
@@ -762,7 +770,7 @@
                                         <div class="mt-2 text-[11px] text-slate-500">平均 {{ operationsReport.cycleDistribution.arrivalToDistribution.averageDays.toFixed(2) }} 天</div>
                                         <div class="mt-4 space-y-2">
                                             <div
-                                                v-for="row in arrivalToDistributionRows"
+                                                v-for="(row, idx) in arrivalToDistributionRows"
                                                 :key="`arrival-distribute-${row.label}`"
                                                 class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
                                             >
@@ -771,7 +779,7 @@
                                                     <span class="font-semibold font-mono text-slate-700">{{ row._count }}</span>
                                                 </div>
                                                 <div class="mt-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                                    <div class="h-full rounded-full bg-emerald-500" :style="{ width: `${row._ratio.toFixed(2)}%` }"></div>
+                                                    <div class="h-full rounded-full bg-emerald-500 report-animate-x" :style="{ width: `${row._ratio.toFixed(2)}%`, animationDelay: `${idx * 35}ms` }"></div>
                                                 </div>
                                             </div>
                                             <div v-if="!arrivalToDistributionRows.length" class="py-10 text-center text-xs text-slate-500">暂无周期样本</div>
@@ -790,14 +798,14 @@
                                     </div>
                                     <div class="mt-6 h-56 flex items-end gap-2">
                                         <div
-                                            v-for="row in reportMonthlyTrendRows"
+                                            v-for="(row, idx) in reportMonthlyTrendRows"
                                             :key="`ops-month-${row.month}`"
                                             class="flex-1 min-w-0 flex flex-col items-center gap-2"
                                         >
                                             <div class="w-full h-40 flex items-end justify-center">
                                                 <div
-                                                    class="w-full max-w-[52px] rounded-t-md bg-slate-100 border border-slate-200 overflow-hidden flex flex-col-reverse transition-all duration-500"
-                                                    :style="{ height: `${row._totalHeight}px`, opacity: row._totalAmount > 0 ? 0.95 : 0.35 }"
+                                                    class="w-full max-w-[52px] rounded-t-md bg-slate-100 border border-slate-200 overflow-hidden flex flex-col-reverse transition-all duration-500 report-animate-y"
+                                                    :style="{ height: `${row._totalHeight}px`, opacity: row._totalAmount > 0 ? 0.95 : 0.35, animationDelay: `${idx * 45}ms` }"
                                                 >
                                                     <div v-if="row._paidHeight > 0" class="bg-emerald-500" :style="{ height: `${row._paidHeight}px` }"></div>
                                                     <div v-if="row._unpaidHeight > 0" class="bg-amber-500" :style="{ height: `${row._unpaidHeight}px` }"></div>
@@ -828,7 +836,7 @@
                     </div>
                 </section>
 
-                <section v-else-if="currentView === 'audit'" class="h-full min-h-0 flex flex-col gap-4">
+                <section v-else-if="currentView === 'audit'" class="view-pane h-full min-h-0 flex flex-col gap-4">
                     <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl p-6">
                         <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                             <div>
@@ -1258,10 +1266,10 @@
 
         <div
             v-if="confirmModalVisible"
-            class="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4"
+            class="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4 confirm-overlay"
             @click.self="cancelConfirmDialog"
         >
-            <div class="w-full max-w-md bg-white rounded-xl shadow-xl ring-1 ring-slate-900/10 overflow-hidden">
+            <div class="w-full max-w-md bg-white rounded-xl shadow-xl ring-1 ring-slate-900/10 overflow-hidden confirm-panel">
                 <div class="px-5 py-4 border-b border-slate-200">
                     <h3 class="text-base font-semibold text-slate-900">{{ confirmModalTitle }}</h3>
                     <p class="mt-2 text-sm text-slate-600 leading-relaxed">{{ confirmModalMessage }}</p>

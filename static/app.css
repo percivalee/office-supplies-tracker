@@ -181,3 +181,102 @@ body {
     background: #eff6ff !important;
     transform: scale(0.985);
 }
+
+/* 页面切换：轻量级入场动画 */
+.view-pane {
+    animation: view-pane-enter 0.2s ease-out both;
+}
+
+/* 报表图形：按轴向揭示动画，可配合 inline animationDelay 形成级联 */
+.report-animate-x {
+    transform-origin: left center;
+    animation: report-reveal-x 0.45s cubic-bezier(0.2, 0.65, 0.2, 1) both;
+}
+
+.report-animate-y {
+    transform-origin: center bottom;
+    animation: report-reveal-y 0.45s cubic-bezier(0.2, 0.65, 0.2, 1) both;
+}
+
+/* 弹窗：淡入 + 轻微上浮 */
+.modal-overlay {
+    animation: modal-overlay-enter 0.16s ease-out both;
+}
+
+.modal-panel {
+    animation: modal-panel-enter 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.confirm-overlay {
+    animation: modal-overlay-enter 0.16s ease-out both;
+}
+
+.confirm-panel {
+    animation: modal-panel-enter 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes view-pane-enter {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@keyframes report-reveal-x {
+    from {
+        opacity: 0.4;
+        transform: scaleX(0.05);
+    }
+    to {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+@keyframes report-reveal-y {
+    from {
+        opacity: 0.4;
+        transform: scaleY(0.08);
+    }
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+@keyframes modal-overlay-enter {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes modal-panel-enter {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+/* 低动效模式兼容 */
+@media (prefers-reduced-motion: reduce) {
+    .view-pane,
+    .report-animate-x,
+    .report-animate-y,
+    .modal-overlay,
+    .modal-panel,
+    .confirm-overlay,
+    .confirm-panel {
+        animation: none !important;
+    }
+}
