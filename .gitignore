@@ -26,6 +26,8 @@ uploads/*
 # Packaging artifacts
 build/
 dist/
+dist-installer/
+build_logs/
 
 # OS/editor
 .DS_Store
