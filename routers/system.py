@@ -3,7 +3,6 @@ import asyncio
 from pathlib import Path
 from uuid import uuid4
 
-import google.generativeai as genai
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
@@ -159,6 +158,8 @@ def _list_gemini_models(api_key: str) -> list[str]:
     if not api_key:
         raise HTTPException(status_code=400, detail="请先填写 Gemini API Key")
     try:
+        import google.generativeai as genai
+
         genai.configure(api_key=api_key)
         names: list[str] = []
         for model in genai.list_models():
@@ -171,6 +172,8 @@ def _list_gemini_models(api_key: str) -> list[str]:
                 names.append(public_name)
         names.sort()
         return names
+    except ModuleNotFoundError:
+        raise HTTPException(status_code=500, detail="缺少 google-generativeai 依赖，无法获取 Gemini 模型列表")
     except HTTPException:
         raise
     except Exception as exc:

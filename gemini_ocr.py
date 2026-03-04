@@ -9,8 +9,6 @@ from threading import Lock
 from typing import Any
 from urllib.parse import urlparse
 
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
 from PIL import Image
 
 from gemini_config import (
@@ -69,6 +67,15 @@ _SYSTEM_PROMPT = """
 
 class GeminiParseError(RuntimeError):
     """多模态解析失败。"""
+
+
+def _load_google_runtime():
+    try:
+        import google.generativeai as genai
+        from google.api_core import exceptions as google_exceptions
+    except ModuleNotFoundError as exc:
+        raise GeminiParseError("缺少 google-generativeai 依赖，请先安装后再使用 Google 协议。") from exc
+    return genai, google_exceptions
 
 
 def _normalize_protocol(value: str | None) -> str:
@@ -569,6 +576,7 @@ def _normalize_google_endpoint(base_url: str | None) -> str:
 def _build_google_model(api_key: str, model_name: str, base_url: str):
     if not api_key:
         raise GeminiParseError("未配置 API Key，请先在系统设置中填写后重试。")
+    genai, _ = _load_google_runtime()
 
     configure_kwargs: dict[str, Any] = {"api_key": api_key}
     endpoint = _normalize_google_endpoint(base_url)
@@ -643,6 +651,7 @@ def _parse_with_google(
     model_name_override: str | None = None,
     base_url_override: str | None = None,
 ) -> dict:
+    _, google_exceptions = _load_google_runtime()
     model, timeout_seconds = _get_google_model(
         api_key_override=api_key_override,
         model_name_override=model_name_override,

@@ -101,6 +101,8 @@ try {
     "--add-data", "alembic;alembic",
     "--add-data", "alembic.ini;.",
     "--collect-all", "webview",
+    "--collect-all", "google.generativeai",
+    "--hidden-import", "db.sqlalchemy_models",
     "--hidden-import", "uvicorn.loops.auto",
     "--hidden-import", "uvicorn.protocols.http.auto",
     "--hidden-import", "uvicorn.protocols.websockets.auto",
