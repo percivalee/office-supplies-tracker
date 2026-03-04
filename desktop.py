@@ -20,24 +20,40 @@ BACKEND_CRASH_LOG_FILENAME = "backend_crash.log"
 _FALLBACK_STREAM = None
 
 
-def _ensure_standard_streams(*, fallback_log_path: Optional[Path] = None) -> None:
+def _ensure_standard_streams(
+    *,
+    fallback_log_path: Optional[Path] = None,
+    force_redirect: bool = False,
+) -> None:
     """在 --windowed 场景补齐 stdout/stderr，避免第三方库写日志时报错。"""
     global _FALLBACK_STREAM
-    if sys.stdout is not None and sys.stderr is not None:
+    has_streams = sys.stdout is not None and sys.stderr is not None
+    if has_streams and not force_redirect:
         return
 
-    if _FALLBACK_STREAM is None:
-        if fallback_log_path is not None:
+    need_log_stream = fallback_log_path is not None
+    current_stream_path = None
+    if _FALLBACK_STREAM is not None:
+        current_stream_path = getattr(_FALLBACK_STREAM, "name", None)
+
+    if need_log_stream:
+        target_path = str(fallback_log_path)
+        if (
+            _FALLBACK_STREAM is None
+            or _FALLBACK_STREAM.closed
+            or current_stream_path != target_path
+        ):
             try:
                 fallback_log_path.parent.mkdir(parents=True, exist_ok=True)
             except OSError:
                 pass
             _FALLBACK_STREAM = open(fallback_log_path, "a", encoding="utf-8", buffering=1)
-        else:
-            _FALLBACK_STREAM = open(os.devnull, "w", encoding="utf-8", buffering=1)
-    if sys.stdout is None:
+    elif _FALLBACK_STREAM is None or _FALLBACK_STREAM.closed:
+        _FALLBACK_STREAM = open(os.devnull, "w", encoding="utf-8", buffering=1)
+
+    if force_redirect or sys.stdout is None:
         sys.stdout = _FALLBACK_STREAM
-    if sys.stderr is None:
+    if force_redirect or sys.stderr is None:
         sys.stderr = _FALLBACK_STREAM
 
 
@@ -74,7 +90,7 @@ def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
         crash_log_path.unlink(missing_ok=True)
     except OSError:
         pass
-    _ensure_standard_streams(fallback_log_path=crash_log_path)
+    _ensure_standard_streams(fallback_log_path=crash_log_path, force_redirect=True)
 
     os.chdir(runtime_dir)
     Path("uploads").mkdir(exist_ok=True)
@@ -91,7 +107,6 @@ def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
             workers=1,
             log_level="warning",
             access_log=False,
-            log_config=None,
         )
     except BaseException:
         try:
