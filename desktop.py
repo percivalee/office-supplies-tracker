@@ -6,6 +6,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 import urllib.request
 from pathlib import Path
 from typing import Optional
@@ -15,6 +16,7 @@ HOST = "127.0.0.1"
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
 STARTUP_TIMEOUT_SECONDS = 45
+BACKEND_CRASH_LOG_FILENAME = "backend_crash.log"
 _DEVNULL_STREAM = None
 
 
@@ -50,22 +52,36 @@ def _find_free_port(host: str) -> int:
 def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
     """子进程入口：启动 FastAPI 服务。"""
     _ensure_standard_streams()
+    runtime_path = Path(runtime_dir)
+    crash_log_path = runtime_path / BACKEND_CRASH_LOG_FILENAME
+    try:
+        crash_log_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
     os.chdir(runtime_dir)
     Path("uploads").mkdir(exist_ok=True)
 
-    import uvicorn
-    from main import app
+    try:
+        import uvicorn
+        from main import app
 
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        reload=False,
-        workers=1,
-        log_level="warning",
-        access_log=False,
-        log_config=None,
-    )
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            reload=False,
+            workers=1,
+            log_level="warning",
+            access_log=False,
+            log_config=None,
+        )
+    except BaseException:
+        try:
+            crash_log_path.write_text(traceback.format_exc(), encoding="utf-8")
+        except OSError:
+            pass
+        raise
 
 
 class DesktopApp:
@@ -87,7 +103,13 @@ class DesktopApp:
 
         while time.time() < deadline:
             if self.server_process and not self.server_process.is_alive():
-                raise RuntimeError("FastAPI 后台进程已提前退出")
+                exitcode = self.server_process.exitcode
+                crash_log = self.runtime_dir / BACKEND_CRASH_LOG_FILENAME
+                if crash_log.exists():
+                    raise RuntimeError(
+                        f"FastAPI 后台进程已提前退出（exitcode={exitcode}），请查看日志：{crash_log}"
+                    )
+                raise RuntimeError(f"FastAPI 后台进程已提前退出（exitcode={exitcode}）")
             try:
                 with urllib.request.urlopen(url, timeout=1):
                     return
@@ -98,10 +120,15 @@ class DesktopApp:
 
     def start_backend(self) -> None:
         """启动后台 FastAPI 子进程。"""
+        crash_log = self.runtime_dir / BACKEND_CRASH_LOG_FILENAME
+        try:
+            crash_log.unlink(missing_ok=True)
+        except OSError:
+            pass
+
         process = mp.Process(
             target=_run_fastapi_server,
             args=(self.host, self.port, str(self.runtime_dir)),
-            daemon=True,
             name="fastapi-backend",
         )
         process.start()

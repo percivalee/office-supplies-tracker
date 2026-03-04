@@ -4,7 +4,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 
-from app_runtime import RUNTIME_DIR
+from app_runtime import PYINSTALLER_INTERNAL_DIR, RUNTIME_DIR
 from db.constants import DB_PATH
 
 
@@ -21,6 +21,8 @@ def _resolve_alembic_ini() -> Path:
     candidates = [Path(RUNTIME_DIR) / "alembic.ini", Path(__file__).resolve().parents[1] / "alembic.ini"]
     if meipass:
         candidates.insert(0, Path(meipass) / "alembic.ini")
+    if PYINSTALLER_INTERNAL_DIR is not None:
+        candidates.insert(0, Path(PYINSTALLER_INTERNAL_DIR) / "alembic.ini")
     return _resolve_existing_path(candidates, "alembic.ini")
 
 
@@ -29,6 +31,8 @@ def _resolve_script_location() -> Path:
     candidates = [Path(RUNTIME_DIR) / "alembic", Path(__file__).resolve().parents[1] / "alembic"]
     if meipass:
         candidates.insert(0, Path(meipass) / "alembic")
+    if PYINSTALLER_INTERNAL_DIR is not None:
+        candidates.insert(0, Path(PYINSTALLER_INTERNAL_DIR) / "alembic")
     return _resolve_existing_path(candidates, "alembic script directory")
 
 
