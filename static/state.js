@@ -378,6 +378,7 @@
             },
         watch: {
                 ocrEngine(next) {
+                    // 设计意图：记录当前解析引擎，保证刷新后仍沿用用户选择。
                     try {
                         const value = (next === 'cloud' || next === 'local') ? next : 'local';
                         window.localStorage.setItem('ocr_engine', value);
@@ -385,6 +386,7 @@
                     }
                 },
                 llmApiKey(next) {
+                    // 设计意图：按协议隔离存储 API Key，避免切换协议后串用凭证。
                     try {
                         if (typeof this.persistLlmProtocolField === 'function') {
                             this.persistLlmProtocolField('api_key', next);
@@ -403,6 +405,7 @@
                     }
                 },
                 llmProtocol(next) {
+                    // 设计意图：协议切换时自动装载该协议的专属配置，减少重复输入。
                     try {
                         const value = (typeof this.normalizeLlmProtocol === 'function')
                             ? this.normalizeLlmProtocol(next)
@@ -422,6 +425,7 @@
                     }
                 },
                 llmModelName(next) {
+                    // 设计意图：模型名与协议绑定保存，便于不同供应商独立维护默认模型。
                     try {
                         if (typeof this.persistLlmProtocolField === 'function') {
                             this.persistLlmProtocolField('model_name', next);
@@ -440,6 +444,7 @@
                     }
                 },
                 llmBaseUrl(next) {
+                    // 设计意图：为每个协议单独保存中转地址/网关地址，避免误用。
                     try {
                         if (typeof this.persistLlmProtocolField === 'function') {
                             this.persistLlmProtocolField('base_url', next);

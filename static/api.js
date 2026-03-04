@@ -128,6 +128,52 @@
                     const gb = mb / 1024;
                     return `${gb.toFixed(2)} GB`;
                 },
+                compactPurchaseLink(value) {
+                    const raw = (value || '').toString().trim();
+                    if (!raw) return '未填写';
+
+                    const cemallPrefix = 'https://www.cemall.com.cn/goods/';
+                    if (raw.toLowerCase().startsWith(cemallPrefix)) {
+                        const suffix = raw.slice(cemallPrefix.length).replace(/^\/+/, '');
+                        return suffix ? `cemall/${suffix}` : 'cemall';
+                    }
+
+                    try {
+                        const parsed = new URL(raw);
+                        const path = (parsed.pathname || '').replace(/^\/+/, '');
+                        const compact = `${parsed.hostname}${path ? `/${path}` : ''}`;
+                        if (compact.length <= 42) return compact;
+                        return `${compact.slice(0, 42)}...`;
+                    } catch (_) {
+                        if (raw.length <= 42) return raw;
+                        return `${raw.slice(0, 42)}...`;
+                    }
+                },
+                async copyPurchaseLink(value) {
+                    const link = (value || '').toString().trim();
+                    if (!link) {
+                        this.showToast('请先填写采购链接', 'error');
+                        return;
+                    }
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(link);
+                        } else {
+                            const input = document.createElement('textarea');
+                            input.value = link;
+                            input.setAttribute('readonly', 'readonly');
+                            input.style.position = 'fixed';
+                            input.style.top = '-9999px';
+                            document.body.appendChild(input);
+                            input.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(input);
+                        }
+                        this.showToast('采购链接已复制', 'success');
+                    } catch (_) {
+                        this.showToast('复制失败，请手动复制', 'error');
+                    }
+                },
                 isValidView(view) {
                     return ['dashboard', 'ledger', 'execution', 'reports', 'audit', 'settings'].includes(view);
                 },
@@ -550,7 +596,12 @@
                     this.inlineEditId = null;
                     this.inlineEditField = '';
                     if (ok) {
-                        this.showSuccessToast(field === 'quantity' ? '数量已更新' : '单价已更新');
+                        const successMessage = {
+                            quantity: '数量已更新',
+                            unit_price: '单价已更新',
+                            purchase_link: '采购链接已更新',
+                        }[field] || '更新成功';
+                        this.showSuccessToast(successMessage);
                     }
                 },
                 async openWebdavModal() {
@@ -1314,7 +1365,7 @@
                             this.paymentStatuses = res.data.payment_statuses;
                         }
                     } catch(e) {
-                        console.error(e);
+                        this.showApiError('加载筛选项失败', e);
                     }
                 },
                 async loadItems() {
@@ -1339,7 +1390,7 @@
                             await this.loadItems();
                         }
                     }
-                    catch(e) { console.error(e); }
+                    catch(e) { this.showApiError('加载台账失败', e); }
                 },
                 async loadStats() {
                     try {
@@ -1355,7 +1406,7 @@
                             },
                         };
                     }
-                    catch(e) { console.error(e); }
+                    catch(e) { this.showApiError('加载统计失败', e); }
                 },
                 handleFilter() {
                     this.currentPage = 1;
@@ -1695,7 +1746,6 @@
 
                         throw new Error('服务端未返回 task_id');
                     } catch(e) {
-                        console.error('上传错误:', e);
                         this.error = '上传失败: ' + (e.response?.data?.detail || e.message);
                         this.showToast(this.error, 'error');
                         this.clearUploadTaskPolling();

@@ -2,7 +2,7 @@
 
 用于内部办公用品采购管理的单用户工具。支持上传领用单（PDF/图片）自动识别，在线维护采购流程，并可按条件筛选与导出 Excel。
 
-当前版本：`1.1.1`
+当前版本：`1.1.2`
 
 ## 核心功能
 
@@ -36,6 +36,18 @@
 - 前端：Vue 3 + TailwindCSS + Axios
 - 桌面端容器：pywebview（本地启动 FastAPI 并内嵌 Web 界面）
 - 导出：openpyxl
+
+## AI 视觉解析引擎
+
+系统支持 `local` 与 `cloud` 双引擎：
+
+- `local`：本地 OCR/规则解析，不依赖外部大模型服务
+- `cloud`：多协议大模型视觉解析，支持以下三种协议
+  - `openai`：OpenAI 兼容接口（支持自定义 `base_url` 中转）
+  - `anthropic`：Anthropic Claude 视觉接口
+  - `google`：Google Gemini 直连接口
+
+`cloud` 模式统一通过 `engine/protocol/api_key/model_name/base_url` 参数配置，上传后返回 `task_id`，前端轮询异步任务结果。
 
 ## 安装与启动
 

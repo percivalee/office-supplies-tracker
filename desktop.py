@@ -99,15 +99,20 @@ def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
         import uvicorn
         from main import app
 
-        uvicorn.run(
-            app,
+        # 使用 Server 直接启动，避免 uvicorn.run 在启动失败时仅抛 SystemExit(3)。
+        config = uvicorn.Config(
+            app=app,
             host=host,
             port=port,
             reload=False,
             workers=1,
-            log_level="warning",
+            log_level="info",
             access_log=False,
         )
+        server = uvicorn.Server(config)
+        server.run()
+        if not server.started:
+            raise RuntimeError("FastAPI 启动失败：服务未进入监听状态，请查看同文件中的 uvicorn 错误日志。")
     except BaseException:
         try:
             with crash_log_path.open("a", encoding="utf-8") as f:

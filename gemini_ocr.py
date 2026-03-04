@@ -812,27 +812,34 @@ def parse_document_with_gemini(
         raise GeminiParseError("上传文件不存在，请重新上传。")
 
     normalized_protocol = _normalize_protocol(protocol)
-    parsed: dict
-    if normalized_protocol == "openai":
-        parsed = _parse_with_openai(
-            path,
-            api_key_override=api_key_override,
-            model_name_override=model_name_override,
-            base_url_override=base_url_override,
-        )
-    elif normalized_protocol == "anthropic":
-        parsed = _parse_with_anthropic(
-            path,
-            api_key_override=api_key_override,
-            model_name_override=model_name_override,
-            base_url_override=base_url_override,
-        )
-    else:
-        parsed = _parse_with_google(
-            path,
-            api_key_override=api_key_override,
-            model_name_override=model_name_override,
-            base_url_override=base_url_override,
-        )
-
-    return _supplement_with_local_parser(path, parsed)
+    # 双引擎协议分发：同一入口按协议路由到 OpenAI/Anthropic/Google。
+    try:
+        parsed: dict
+        if normalized_protocol == "openai":
+            parsed = _parse_with_openai(
+                path,
+                api_key_override=api_key_override,
+                model_name_override=model_name_override,
+                base_url_override=base_url_override,
+            )
+        elif normalized_protocol == "anthropic":
+            parsed = _parse_with_anthropic(
+                path,
+                api_key_override=api_key_override,
+                model_name_override=model_name_override,
+                base_url_override=base_url_override,
+            )
+        else:
+            parsed = _parse_with_google(
+                path,
+                api_key_override=api_key_override,
+                model_name_override=model_name_override,
+                base_url_override=base_url_override,
+            )
+        return _supplement_with_local_parser(path, parsed)
+    except GeminiParseError:
+        raise
+    except TimeoutError as exc:
+        raise GeminiParseError("云端解析超时，请稍后重试，或切换为手动录入。") from exc
+    except Exception as exc:
+        raise GeminiParseError("云端解析失败，请稍后重试或切换为手动录入。") from exc

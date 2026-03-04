@@ -25,6 +25,16 @@ _DEFAULT_UPLOAD_ENGINE = "local"
 _DEFAULT_LLM_PROTOCOL = "openai"
 
 
+def _friendly_task_error_detail(error: Exception) -> str:
+    """统一任务失败文案，避免把底层异常原样暴露给前端。"""
+    if isinstance(error, TimeoutError):
+        return "解析超时，请稍后重试，或切换为手动录入。"
+    raw = str(error or "").strip()
+    if not raw:
+        return "解析失败，请稍后重试，或切换为手动录入。"
+    return raw[:300]
+
+
 def _normalize_payload_from_fields(
     *,
     serial_number,
@@ -133,6 +143,7 @@ def _parse_by_engine(
     model_name: str | None = None,
     base_url: str | None = None,
 ) -> dict:
+    # 双引擎路由：local 走本地 OCR/规则解析，cloud 走多协议大模型解析。
     normalized_engine = _normalize_engine(engine)
     if normalized_engine == "cloud":
         return parse_document_with_gemini(
@@ -186,7 +197,7 @@ def _run_parse_task(
         _set_task(
             task_id,
             status="failed",
-            result={"detail": f"解析失败: {str(e)}；请切换为手动录入。"},
+            result={"detail": _friendly_task_error_detail(e)},
         )
     finally:
         safe_unlink(file_path)
@@ -239,7 +250,10 @@ async def upload_and_parse(
         raise
     except Exception as e:
         safe_unlink(file_path)
-        raise HTTPException(status_code=500, detail=f"解析失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"解析任务创建失败，请稍后重试。{_friendly_task_error_detail(e)}",
+        )
     finally:
         await file.close()
 
