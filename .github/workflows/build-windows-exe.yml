@@ -51,13 +51,14 @@ jobs:
           }
 
       - name: Publish release assets
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          commit: ${{ github.sha }}
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '🚀 最新开发版' }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-          files: |
-            dist/办公用品采购系统-绿色版.exe
-            dist/办公用品采购系统-安装包.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: dist/办公用品采购系统-绿色版.exe,dist/办公用品采购系统-安装包.exe
+          allowUpdates: true
+          removeArtifacts: true
+          replacesArtifacts: true

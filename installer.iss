@@ -1,7 +1,7 @@
 [Setup]
 AppId={{BE0C5031-3EE9-450D-9F17-84526F27F5B5}
 AppName=办公用品采购系统
-AppVersion=1.2.0
+AppVersion=1.2.1
 DefaultDirName={autopf}\OfficeSuppliesTracker
 DefaultGroupName=办公用品采购系统
 OutputDir=dist
