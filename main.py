@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import os
+import sys
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -62,7 +64,24 @@ app.include_router(items_router)
 app.include_router(imports_router)
 
 
+_FALLBACK_STREAM = None
+
+
+def _ensure_standard_streams() -> None:
+    """兼容 --noconsole 打包：确保 stdout/stderr 可用。"""
+    global _FALLBACK_STREAM
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    if _FALLBACK_STREAM is None or _FALLBACK_STREAM.closed:
+        _FALLBACK_STREAM = open(os.devnull, "w", encoding="utf-8", buffering=1)
+    if sys.stdout is None:
+        sys.stdout = _FALLBACK_STREAM
+    if sys.stderr is None:
+        sys.stderr = _FALLBACK_STREAM
+
+
 if __name__ == "__main__":
     import uvicorn
 
+    _ensure_standard_streams()
     uvicorn.run(app, host="0.0.0.0", port=8000)
