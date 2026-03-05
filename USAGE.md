@@ -241,7 +241,7 @@ python desktop.py
 
 默认位于运行目录：
 
-- `office_supplies.db`
+- `data/office_supplies.db`
 - `uploads/`
 - `.webdav_config.json`
 - `.gemini_config.json`

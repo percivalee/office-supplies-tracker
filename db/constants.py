@@ -1,10 +1,8 @@
 from enum import Enum
-from pathlib import Path
-
-from app_runtime import RUNTIME_DIR
+from app_runtime import DATA_DIR
 
 # 始终锚定到运行目录，避免“业务读写库”和“备份恢复库”路径不一致。
-DB_PATH = str((Path(RUNTIME_DIR) / "office_supplies.db").resolve())
+DB_PATH = str((DATA_DIR / "office_supplies.db").resolve())
 
 ALLOWED_COLUMNS = frozenset({
     "serial_number", "department", "handler", "request_date",

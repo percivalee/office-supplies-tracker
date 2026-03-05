@@ -4,6 +4,22 @@
 
 当前版本：`1.1.2`
 
+## 🚀 一键私有化部署
+
+企业用户无需本地构建镜像，只需下载项目根目录的 `docker-compose.yml` 到任意服务器目录，在同级目录执行：
+
+```bash
+docker-compose up -d
+```
+
+系统会自动从 `ghcr.io/percivalee/office-supplies-tracker:latest` 拉取网络镜像并启动服务。
+
+访问地址：`http://服务器IP:8000`
+
+数据持久化目录：
+- 宿主机：`./data`
+- 容器内：`/app/data`
+
 ## 核心功能
 
 - 单据导入解析：上传 PDF/图片后自动提取流水号、部门、经办人、日期与物品明细
@@ -330,7 +346,7 @@ office-supplies-tracker/
 - 优先上传 PDF，识别稳定性最佳
 - 图片上传建议使用高清截图，避免带审批系统按钮区域
 - 解析后请抽样核对关键字段（部门、日期、数量）
-- 数据库文件 `office_supplies.db` 默认在项目根目录（已被 `.gitignore` 忽略）
+- 数据库文件默认在 `data/office_supplies.db`（目录不存在会自动创建）
 
 ## 💼 商业授权与企业版
 

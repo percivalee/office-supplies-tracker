@@ -8,11 +8,15 @@ venv/
 
 # Local runtime data
 *.db
+*.db-wal
+*.db-shm
 .webdav_config.json
 .gemini_config.json
 .restore_tmp_*
 .restore_db_snapshot_*.bak
 .restore_uploads_snapshot_*
+data/*
+!data/.gitkeep
 samples/regression/last_report.json
 samples/regression/pdf_text/*
 !samples/regression/pdf_text/.gitkeep

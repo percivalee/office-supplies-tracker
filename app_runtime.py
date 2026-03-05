@@ -40,5 +40,7 @@ def resolve_static_dir() -> Path:
 RUNTIME_DIR = resolve_runtime_dir()
 PYINSTALLER_INTERNAL_DIR = resolve_pyinstaller_internal_dir()
 STATIC_DIR = resolve_static_dir()
+DATA_DIR = RUNTIME_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR = RUNTIME_DIR / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

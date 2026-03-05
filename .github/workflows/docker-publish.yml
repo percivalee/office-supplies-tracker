@@ -1,0 +1,55 @@
+name: Docker Publish
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+jobs:
+  docker-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare image tags
+        id: prep
+        run: |
+          IMAGE="ghcr.io/percivalee/office-supplies-tracker"
+          TAGS="${IMAGE}:latest\n${IMAGE}:sha-${GITHUB_SHA}"
+
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            TAGS="${TAGS}\n${IMAGE}:${{ github.event.release.tag_name }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAGS="${TAGS}\n${IMAGE}:${GITHUB_REF_NAME}"
+          fi
+
+          {
+            echo "tags<<EOF"
+            printf "%b\n" "${TAGS}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.prep.outputs.tags }}
