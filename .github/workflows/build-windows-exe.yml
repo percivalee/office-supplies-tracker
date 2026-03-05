@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Windows Packages
 
 on:
   push:
@@ -30,16 +30,31 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pydantic fastapi uvicorn
 
-      - name: Build EXE with PyInstaller
+      - name: Build onefile portable EXE
         run: |
-          pyinstaller --name "办公用品采购系统" --onefile --noconsole --add-data "static;static" --hidden-import uvicorn --hidden-import fastapi main.py
+          pyinstaller --name "办公用品采购系统-绿色版" --onefile --noconsole --add-data "static;static" --hidden-import uvicorn --hidden-import fastapi main.py
 
-      - name: Publish Release Asset
+      - name: Build onedir package for installer
+        run: |
+          pyinstaller --name "办公用品采购系统-文件夹版" --onedir --noconsole --add-data "static;static" --hidden-import uvicorn --hidden-import fastapi main.py
+
+      - name: Build Inno Setup installer
+        run: |
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (Test-Path $isccPath) {
+            & $isccPath "installer.iss"
+          } else {
+            iscc "installer.iss"
+          }
+
+      - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '🚀 最新开发版' }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-          files: dist/办公用品采购系统.exe
+          files: |
+            dist/办公用品采购系统-绿色版.exe
+            dist/办公用品采购系统-安装包.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
