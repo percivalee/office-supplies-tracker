@@ -13,6 +13,7 @@
                     filterStatus: '',
                     filterDepartment: '',
                     filterMonth: '',
+                    appVersion: '1.2.3',
                     currentView: 'dashboard',
                     executionLoading: false,
                     boardKeyword: '',
@@ -62,7 +63,7 @@
                     importSubmitting: false,
                     parseResult: null,
                     error: null,
-                    showAddModal: false,  // 确保初始化为 false
+                    showAddModal: false,
                     showWebdavModal: false,
                     webdavLoading: false,
                     webdavConfig: {

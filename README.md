@@ -2,7 +2,16 @@
 
 用于内部办公用品采购管理的单用户工具。支持上传领用单（PDF/图片）自动识别，在线维护采购流程，并可按条件筛选与导出 Excel。
 
-当前版本：`1.2.2`
+当前版本：`1.2.3`
+
+## 更新日志 (Changelog)
+
+### v1.2.3 (2026-03-05)
+
+- 修复 Windows 安装版在 `Program Files` 下运行时的权限问题：新增数据目录可写性探测，写入失败时自动回退到 `%APPDATA%/OfficeSuppliesTracker/data`。
+- 统一运行时写路径到可写状态目录：SQLite、上传目录、运行日志、WebDAV/Gemini 配置与恢复临时文件不再依赖安装目录写权限。
+- 修复 Windows 安装包“安装后打不开”问题：CI 打包入口切换为 `desktop.py`，并补齐 `alembic` / `alembic.ini` 及关键隐藏依赖。
+- 修复 Release 资产发布稳定性：预清理同名资产并规范上传文件名，避免 `already_exists` 与异常 `-.exe` 命名。
 
 ## 🚀 一键私有化部署
 

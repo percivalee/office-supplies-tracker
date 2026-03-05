@@ -17,6 +17,8 @@ from routers.imports import router as imports_router
 from routers.items import router as items_router
 from routers.system import router as system_router
 
+APP_VERSION = "1.2.3"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,7 +28,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="办公用品采购系统", lifespan=lifespan)
+app = FastAPI(title="办公用品采购系统", version=APP_VERSION, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 

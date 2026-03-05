@@ -32,11 +32,11 @@ jobs:
 
       - name: Build onefile portable EXE
         run: |
-          pyinstaller --name "办公用品采购系统-绿色版" --onefile --noconsole --add-data "static;static" --hidden-import uvicorn --hidden-import fastapi main.py
+          pyinstaller --noconfirm --clean --name "办公用品采购系统-绿色版" --onefile --noconsole --add-data "static;static" --add-data "alembic;alembic" --add-data "alembic.ini;." --collect-all "webview" --collect-all "google.generativeai" --hidden-import "db.sqlalchemy_models" --hidden-import "uvicorn.loops.auto" --hidden-import "uvicorn.protocols.http.auto" --hidden-import "uvicorn.protocols.websockets.auto" --hidden-import "uvicorn.lifespan.on" desktop.py
 
       - name: Build onedir package for installer
         run: |
-          pyinstaller --name "办公用品采购系统-文件夹版" --onedir --noconsole --add-data "static;static" --hidden-import uvicorn --hidden-import fastapi main.py
+          pyinstaller --noconfirm --clean --name "办公用品采购系统-文件夹版" --onedir --noconsole --add-data "static;static" --add-data "alembic;alembic" --add-data "alembic.ini;." --collect-all "webview" --collect-all "google.generativeai" --hidden-import "db.sqlalchemy_models" --hidden-import "uvicorn.loops.auto" --hidden-import "uvicorn.protocols.http.auto" --hidden-import "uvicorn.protocols.websockets.auto" --hidden-import "uvicorn.lifespan.on" desktop.py
 
       - name: Download Chinese Language File for Inno Setup
         run: Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl"
