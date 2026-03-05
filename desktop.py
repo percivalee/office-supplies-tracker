@@ -11,6 +11,8 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
+from app_runtime import LOG_DIR, UPLOAD_DIR
+
 APP_TITLE = "办公用品采购系统"
 HOST = "127.0.0.1"
 WINDOW_WIDTH = 1280
@@ -84,8 +86,7 @@ def _read_text_tail(path: Path, max_chars: int = 1600) -> str:
 
 def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
     """子进程入口：启动 FastAPI 服务。"""
-    runtime_path = Path(runtime_dir)
-    crash_log_path = runtime_path / BACKEND_CRASH_LOG_FILENAME
+    crash_log_path = LOG_DIR / BACKEND_CRASH_LOG_FILENAME
     try:
         crash_log_path.unlink(missing_ok=True)
     except OSError:
@@ -93,7 +94,7 @@ def _run_fastapi_server(host: str, port: int, runtime_dir: str) -> None:
     _ensure_standard_streams(fallback_log_path=crash_log_path, force_redirect=True)
 
     os.chdir(runtime_dir)
-    Path("uploads").mkdir(exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         import uvicorn
@@ -143,7 +144,7 @@ class DesktopApp:
         while time.time() < deadline:
             if self.server_process and not self.server_process.is_alive():
                 exitcode = self.server_process.exitcode
-                crash_log = self.runtime_dir / BACKEND_CRASH_LOG_FILENAME
+                crash_log = LOG_DIR / BACKEND_CRASH_LOG_FILENAME
                 if crash_log.exists():
                     log_tail = _read_text_tail(crash_log)
                     tail_hint = f"\n--- 日志尾部 ---\n{log_tail}" if log_tail else ""
@@ -161,7 +162,7 @@ class DesktopApp:
 
     def start_backend(self) -> None:
         """启动后台 FastAPI 子进程。"""
-        crash_log = self.runtime_dir / BACKEND_CRASH_LOG_FILENAME
+        crash_log = LOG_DIR / BACKEND_CRASH_LOG_FILENAME
         try:
             crash_log.unlink(missing_ok=True)
         except OSError:

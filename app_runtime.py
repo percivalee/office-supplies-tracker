@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -37,10 +38,41 @@ def resolve_static_dir() -> Path:
     return candidates[0]
 
 
+def _ensure_writable_dir(path: Path) -> None:
+    """创建目录并通过临时文件验证可写权限。"""
+    path.mkdir(parents=True, exist_ok=True)
+    probe_file = path / ".test_write"
+    try:
+        probe_file.write_text("ok", encoding="utf-8")
+    finally:
+        try:
+            probe_file.unlink()
+        except OSError:
+            pass
+
+
+def resolve_data_dir() -> Path:
+    """优先使用程序目录下 data/，不可写时回退到 APPDATA。"""
+    runtime_data_dir = resolve_runtime_dir() / "data"
+    try:
+        _ensure_writable_dir(runtime_data_dir)
+        return runtime_data_dir
+    except (PermissionError, OSError):
+        fallback_data_dir = (
+            Path(os.environ.get("APPDATA", "~")).expanduser()
+            / "OfficeSuppliesTracker"
+            / "data"
+        )
+        _ensure_writable_dir(fallback_data_dir)
+        return fallback_data_dir
+
+
 RUNTIME_DIR = resolve_runtime_dir()
 PYINSTALLER_INTERNAL_DIR = resolve_pyinstaller_internal_dir()
 STATIC_DIR = resolve_static_dir()
-DATA_DIR = RUNTIME_DIR / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-UPLOAD_DIR = RUNTIME_DIR / "uploads"
+DATA_DIR = resolve_data_dir()
+APP_STATE_DIR = DATA_DIR.parent
+LOG_DIR = APP_STATE_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+UPLOAD_DIR = APP_STATE_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

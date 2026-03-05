@@ -1,13 +1,15 @@
 from contextlib import asynccontextmanager
 import os
 import sys
+from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app_locks import MAINTENANCE_MODE
-from app_runtime import STATIC_DIR
+from app_runtime import LOG_DIR, STATIC_DIR
 from database import init_db
 from db.audit_context import reset_current_operator_ip, set_current_operator_ip
 from db.migrations import upgrade_database_to_head
@@ -67,13 +69,25 @@ app.include_router(imports_router)
 _FALLBACK_STREAM = None
 
 
-def _ensure_standard_streams() -> None:
+def _ensure_standard_streams(fallback_log_path: Optional[Path] = None) -> None:
     """兼容 --noconsole 打包：确保 stdout/stderr 可用。"""
     global _FALLBACK_STREAM
     if sys.stdout is not None and sys.stderr is not None:
         return
     if _FALLBACK_STREAM is None or _FALLBACK_STREAM.closed:
-        _FALLBACK_STREAM = open(os.devnull, "w", encoding="utf-8", buffering=1)
+        if fallback_log_path is not None:
+            try:
+                fallback_log_path.parent.mkdir(parents=True, exist_ok=True)
+                _FALLBACK_STREAM = open(
+                    fallback_log_path,
+                    "a",
+                    encoding="utf-8",
+                    buffering=1,
+                )
+            except OSError:
+                _FALLBACK_STREAM = open(os.devnull, "w", encoding="utf-8", buffering=1)
+        else:
+            _FALLBACK_STREAM = open(os.devnull, "w", encoding="utf-8", buffering=1)
     if sys.stdout is None:
         sys.stdout = _FALLBACK_STREAM
     if sys.stderr is None:
@@ -83,5 +97,5 @@ def _ensure_standard_streams() -> None:
 if __name__ == "__main__":
     import uvicorn
 
-    _ensure_standard_streams()
+    _ensure_standard_streams(LOG_DIR / "backend.log")
     uvicorn.run(app, host="0.0.0.0", port=8000)

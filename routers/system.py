@@ -9,7 +9,7 @@ from starlette.concurrency import run_in_threadpool
 
 from api_utils import safe_unlink, save_upload_file_with_limit
 from app_locks import DATA_MUTATION_LOCK, MAINTENANCE_MODE
-from app_runtime import RUNTIME_DIR, STATIC_DIR, UPLOAD_DIR
+from app_runtime import APP_STATE_DIR, STATIC_DIR, UPLOAD_DIR
 from backup_service import (
     MAX_BACKUP_TOTAL_SIZE,
     build_backup_archive,
@@ -38,7 +38,7 @@ from webdav_service import (
 )
 
 router = APIRouter()
-WEBDAV_CONFIG_PATH = RUNTIME_DIR / ".webdav_config.json"
+WEBDAV_CONFIG_PATH = APP_STATE_DIR / ".webdav_config.json"
 
 
 def _validate_backup_filename(filename: str) -> str:

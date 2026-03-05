@@ -2,10 +2,10 @@ import json
 import os
 from pathlib import Path
 
-from app_runtime import RUNTIME_DIR
+from app_runtime import APP_STATE_DIR
 
 
-GEMINI_CONFIG_PATH = Path(RUNTIME_DIR) / ".gemini_config.json"
+GEMINI_CONFIG_PATH = Path(APP_STATE_DIR) / ".gemini_config.json"
 DEFAULT_GEMINI_MODEL_NAME = "gemini-3.0-flash"
 DEFAULT_GEMINI_TIMEOUT_SECONDS = 90
 MIN_GEMINI_TIMEOUT_SECONDS = 10

@@ -10,7 +10,7 @@ from typing import Callable, Optional
 from uuid import uuid4
 
 from api_utils import safe_unlink
-from app_runtime import RUNTIME_DIR, UPLOAD_DIR
+from app_runtime import APP_STATE_DIR, UPLOAD_DIR
 from database import DB_PATH
 
 MAX_BACKUP_ENTRIES = 5000
@@ -43,7 +43,7 @@ def resolve_db_path() -> Path:
     db_path = Path(DB_PATH)
     if db_path.is_absolute():
         return db_path
-    return RUNTIME_DIR / db_path
+    return APP_STATE_DIR / db_path
 
 
 def is_safe_zip_entry(name: str) -> bool:
@@ -127,7 +127,7 @@ def _validate_sqlite_db_file(db_file: Path) -> dict:
 
 def inspect_backup_archive(archive_path: Path) -> dict:
     """备份健康检查：验证 zip 结构与数据库可读性。"""
-    extract_dir = RUNTIME_DIR / f".backup_health_{uuid4().hex}"
+    extract_dir = APP_STATE_DIR / f".backup_health_{uuid4().hex}"
     try:
         extract_dir.mkdir(parents=True, exist_ok=False)
         try:
@@ -187,10 +187,10 @@ def restore_from_archive(
     post_restore_hook: Optional[Callable[[], None]] = None,
 ) -> dict:
     """从备份 zip 恢复数据库与上传目录。"""
-    extract_dir = RUNTIME_DIR / f".restore_tmp_{uuid4().hex}"
-    snapshot_db = RUNTIME_DIR / f".restore_db_snapshot_{uuid4().hex}.bak"
-    snapshot_uploads = RUNTIME_DIR / f".restore_uploads_snapshot_{uuid4().hex}"
-    temp_db_target = RUNTIME_DIR / f".restore_db_target_{uuid4().hex}.tmp"
+    extract_dir = APP_STATE_DIR / f".restore_tmp_{uuid4().hex}"
+    snapshot_db = APP_STATE_DIR / f".restore_db_snapshot_{uuid4().hex}.bak"
+    snapshot_uploads = APP_STATE_DIR / f".restore_uploads_snapshot_{uuid4().hex}"
+    temp_db_target = APP_STATE_DIR / f".restore_db_target_{uuid4().hex}.tmp"
     db_path = resolve_db_path()
 
     try:

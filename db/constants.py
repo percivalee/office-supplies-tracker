@@ -1,7 +1,7 @@
 from enum import Enum
 from app_runtime import DATA_DIR
 
-# 始终锚定到运行目录，避免“业务读写库”和“备份恢复库”路径不一致。
+# 使用可写数据目录（安装到 Program Files 时自动回退到 APPDATA）。
 DB_PATH = str((DATA_DIR / "office_supplies.db").resolve())
 
 ALLOWED_COLUMNS = frozenset({
